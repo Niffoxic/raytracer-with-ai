@@ -53,3 +53,9 @@ raytracer_with_ai
 # OS specific
 .DS_Store
 Thumbs.db
+
+assets/*
+!assets/scripts/
+!assets/scripts/**
+assets/scripts/__pycache__/
+assets/scripts/.venv/
