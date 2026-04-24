@@ -74,7 +74,7 @@ FetchContent_Declare(
         URL https://github.com/RenderKit/oidn/releases/download/v${OIDN_VERSION}/oidn-${OIDN_VERSION}.x64.windows.zip
 )
 FetchContent_MakeAvailable(oidn)
-add_library(oidn INTERFACE)
+add_library(oidn_ext INTERFACE)
 target_include_directories(oidn_ext INTERFACE ${oidn_SOURCE_DIR}/include)
 target_link_libraries(oidn_ext INTERFACE
         ${oidn_SOURCE_DIR}/lib/OpenImageDenoise.lib
@@ -87,7 +87,8 @@ file(GLOB OIDN_RUNTIME_DLLS
 # odin end
 
 # source
-add_executable(tracer_engine src/main.cpp)
+add_executable(tracer_engine src/main.cpp
+        src/core.cpp)
 target_include_directories(tracer_engine PRIVATE include/)
 target_compile_definitions(tracer_engine PRIVATE
         _UNICODE
@@ -137,10 +138,10 @@ file(GLOB_RECURSE ASSET_FILES
 )
 
 foreach(ASSET ${ASSET_FILES})
-    add_custom_command(TARGET application POST_BUILD
+    add_custom_command(TARGET tracer_engine POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${CMAKE_SOURCE_DIR}/assets/${ASSET}
-            $<TARGET_FILE_DIR:application>/assets/${ASSET}
+            $<TARGET_FILE_DIR:tracer_engine>/assets/${ASSET}
             VERBATIM
     )
 endforeach()
