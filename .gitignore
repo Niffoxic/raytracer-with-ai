@@ -1,0 +1,55 @@
+# CMake build directories
+cmake-build-*/
+build/
+out/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# Compiled object files
+*.o
+*.obj
+*.lo
+*.slo
+
+# Compiled dynamic libraries
+*.so
+*.so.*
+*.dylib
+*.dll
+
+# Compiled static libraries
+*.a
+*.lib
+*.lai
+*.la
+
+# Executables
+*.exe
+*.out
+*.app
+raytracer_with_ai
+
+# JetBrains IDEs (CLion, IntelliJ IDEA, etc.)
+.idea/
+*.iml
+*.iws
+.idea_modules/
+
+# Visual Studio Code
+.vscode/
+
+# Temporary and backup files
+*~
+*.swp
+*.swo
+*.tmp
+*.bak
+
+# OS specific
+.DS_Store
+Thumbs.db
