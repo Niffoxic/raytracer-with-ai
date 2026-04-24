@@ -35,6 +35,18 @@ namespace fox_tracer
         inline constexpr T pi = T(3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679);
 
         template<typename T>
+        inline constexpr T inverse_pi = T(0.31830988618379067153776752674502872406891929148054689697427663658793739166691358753951457096296997632);
+
+        template<typename T>
+        inline constexpr T two_pi = T(2.0 * pi<T>);
+
+        template<typename T>
+        inline constexpr T two_pi_inverse = T(1.0 / two_pi<T>);
+
+        template<typename T>
+        inline constexpr T four_pi_inverse = T(1.0 / (4.0 * pi<T>));
+
+        template<typename T>
         inline constexpr T epsilon = T(0.000001);
 
         template<typename T>
