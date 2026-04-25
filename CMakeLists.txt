@@ -89,7 +89,9 @@ file(GLOB OIDN_RUNTIME_DLLS
 # source
 add_executable(tracer_engine src/main.cpp
         src/core.cpp
-        src/sampling.cpp)
+        src/sampling.cpp
+        src/imaging.cpp
+        src/sampling/independent_sampler.cpp)
 target_include_directories(tracer_engine PRIVATE include/)
 target_compile_definitions(tracer_engine PRIVATE
         _UNICODE

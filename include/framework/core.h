@@ -53,7 +53,7 @@ namespace fox_tracer
         requires std::is_arithmetic_v<T>
         constexpr T squared(T x) { return x * x; }
 
-        [[nodiscard]] constexpr float saturate(float v) noexcept
+        [[nodiscard]] constexpr float saturate(const float v) noexcept
         {
             return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
         }

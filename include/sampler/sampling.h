@@ -25,7 +25,7 @@
 #ifndef RAYTRACER_WITH_AI_SAMPLING_H
 #define RAYTRACER_WITH_AI_SAMPLING_H
 
-#include "core.h"
+#include "../framework/core.h"
 #include <random>
 
 namespace fox_tracer
@@ -49,6 +49,27 @@ namespace fox_tracer
 
     namespace sampling
     {
+        enum class sampler_kind
+        {
+            mt_random   = 0,   // base line
+            independent = 1,   // from PBRT textbook
+            stratified  = 2,
+            halton      = 3,
+            sobol       = 4
+        };
+
+        struct sampler_config
+        {
+            sampler_kind kind             = sampler_kind::mt_random;
+            unsigned int seed             = 1;
+            int          samples_per_axis = 4;     // specific to stratified only
+            bool         scrambling       = true;  // for halton/sobol
+            int          max_dimensions   = 256;   // for halton/sobol
+        };
+
+        //~ Simple Factory for Creating Sampler
+        std::unique_ptr<sampler> make_sampler(const sampler_config& cfg);
+
         //~ Hemisphere uniform: random direction somewhere upper dome all are equally likely
         [[nodiscard]] vec3  uniform_sample_hemisphere(float r1, float r2) noexcept;
         [[nodiscard]] float uniform_hemisphere_pdf   (const vec3& wi)     noexcept;

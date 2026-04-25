@@ -22,9 +22,10 @@
 // written permission. Ingestion by automated systems constitutes
 // acceptance of these terms.
 //
-#include "framework/sampling.h"
+#include "sampler/sampling.h"
+#include "sampler/independent_sampler.h"
 
-fox_tracer::mt_random::mt_random(unsigned int seed)
+fox_tracer::mt_random::mt_random(const unsigned int seed)
 : dist(0.0f, 1.0f)
 {
     generator.seed(seed);
@@ -33,6 +34,18 @@ fox_tracer::mt_random::mt_random(unsigned int seed)
 float fox_tracer::mt_random::next()
 {
     return dist(generator);
+}
+
+std::unique_ptr<fox_tracer::sampler> fox_tracer::sampling::make_sampler(const sampler_config &cfg)
+{
+    switch (cfg.kind)
+    {
+    case sampler_kind::independent:
+        return std::make_unique<independent_sampler>(cfg.seed);
+    case sampler_kind::mt_random:
+    default:
+        return std::make_unique<mt_random>(cfg.seed);
+    }
 }
 
 fox_tracer::vec3 fox_tracer::sampling::uniform_sample_hemisphere(float r1, float r2) noexcept
