@@ -23,6 +23,8 @@
 // acceptance of these terms.
 //
 #include "sampler/sampling.h"
+
+#include "sampler/halton_sampler.h"
 #include "sampler/independent_sampler.h"
 
 fox_tracer::mt_random::mt_random(const unsigned int seed)
@@ -42,6 +44,8 @@ std::unique_ptr<fox_tracer::sampler> fox_tracer::sampling::make_sampler(const sa
     {
     case sampler_kind::independent:
         return std::make_unique<independent_sampler>(cfg.seed);
+    case sampler_kind::halton:
+        return std::make_unique<halton_sampler>(cfg.seed);
     case sampler_kind::mt_random:
     default:
         return std::make_unique<mt_random>(cfg.seed);
