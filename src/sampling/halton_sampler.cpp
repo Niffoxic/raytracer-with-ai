@@ -135,7 +135,6 @@ void fox_tracer::sampling::halton_sampler::start_pixel(
     const int px, const int py,
     const int sample_index)
 {
-    // px = 257, py = 42, si = 7
     // px = (32 free)(32) bits
     // px <<= 16 (16 free)(32)(16 for py)
     // px = (32)(32) bits

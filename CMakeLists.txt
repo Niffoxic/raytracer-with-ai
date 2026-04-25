@@ -54,7 +54,8 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(stb)
 
 # compile stb once
-set(STB_IMPL_FILE ${CMAKE_BINARY_DIR}/stb_impl.c)
+set(STB_IMPL_FILE ${CMAKE_BINARY_DIR}/stb_impl.c
+        src/sampling/sobol_sampler.cpp)
 file(CONFIGURE OUTPUT ${STB_IMPL_FILE} CONTENT
         "#define STB_IMAGE_IMPLEMENTATION
         #include \"stb_image.h\"
