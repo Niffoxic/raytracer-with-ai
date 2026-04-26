@@ -330,7 +330,7 @@ fox_tracer::color fox_tracer::bsdf::conductor::evaluate(
         return {0.0f, 0.0f, 0.0f};
 
 
-    // vec3 h_local = math::normalize(wi_local + wo_local);
+    // vec3 h_local = (wi_local + wo_local).normalize();
     vec3 h_local = (wi_local + wo_local);
     const float h_len = std::sqrt(h_local.x * h_local.x
                                 + h_local.y * h_local.y
@@ -683,6 +683,201 @@ bool fox_tracer::bsdf::oren_nayar::is_pure_specular() const
 }
 
 bool fox_tracer::bsdf::oren_nayar::is_two_sided() const
+{
+    return true;
+}
+
+fox_tracer::bsdf::plastic::plastic(
+    texture *_albedo, const float _int_ior,
+    const float _ext_ior, const float roughness) noexcept
+:   albedo(_albedo), int_ior(_int_ior),
+    ext_ior(_ext_ior)
+{
+    const auto vv = std::max(0.0f, std::min(roughness, 1.0f));
+    // alpha = vv * vv;
+    alpha = std::max(0.001f, 1.62142f * std::sqrt(vv));
+}
+
+float fox_tracer::bsdf::plastic::alpha_to_phong_exponent() const noexcept
+{
+    return (2.0f / math::squared(std::max(alpha, 0.001f))) - 2.0f;
+}
+
+fox_tracer::vec3 fox_tracer::bsdf::plastic::sample(
+    const shading_data &sd, sampler *s,
+    color &reflected_colour, float &pdf)
+{
+    //~ Reference GGX specular coat + Lambertian substrate
+    //~ fr = f * d*g / (4 coso cosi) + (1-f) * rho/pi
+    //~ Fresnel weighted lobe pick at wo.n
+    //~ p(spec) = f(wo.z),  o(diff) = 1 - f(wo.z)
+    //~ p(wi) = F * p_spec + (1-f) * p_diff
+
+    const vec3 wo_local = sd.shading_frame.to_local(sd.wo);
+    if (wo_local.z <= 0.0f)
+    {
+        pdf = 0.0f;
+        reflected_colour = color(0.0f, 0.0f, 0.0f);
+        return sd.shading_frame.to_world(vec3(0.0f, 0.0f, 1.0f));
+    }
+
+    const float F_pick = fresnel::dielectric(wo_local.z, int_ior, ext_ior);
+    const color rho    = albedo->sample(sd.tu, sd.tv);
+
+    // const bool pick_spec = s->next() < 0.5f;
+    // pdf = 0.5f * pdf_spec + 0.5f * pdf_diff;
+
+    vec3 wi_local;
+    if (s->next() < F_pick)
+    {
+        //~ cos_h = sqrt((1 - xi1) / ((a^2 - 1)*xi1 + 1))
+        //~ phi   = 2*pi*xi2
+        //~ wi    = 2(wo.h)h - wo
+
+        const float r1 = s->next();
+        const float r2 = s->next();
+        const float a2 = alpha * alpha;
+
+        const float cos_theta_h = std::sqrt(std::max(0.0f,
+                                        (1.0f - r1) / ((a2 - 1.0f) * r1 + 1.0f)));
+
+        const float sin_theta_h = std::sqrt(std::max(0.0f,
+                                        1.0f - cos_theta_h * cos_theta_h));
+        const float phi = 2.0f * math::pi<float> * r2;
+
+        const vec3 h_local(std::cos(phi) * sin_theta_h,
+                               std::sin(phi) * sin_theta_h,
+                               cos_theta_h);
+
+        const float wo_dot_h = math::dot(wo_local, h_local);
+
+        wi_local = (h_local * (2.0f * wo_dot_h)) - wo_local;
+        // TODO: VNDF sampling Heitz - lower variance on grazing wo
+    }
+    else
+    {
+        wi_local = sampling::cosine_sample_hemisphere(s->next(), s->next());
+    }
+
+    if (wi_local.z <= 0.0f)
+    {
+        pdf = 0.0f;
+        reflected_colour = color(0.0f, 0.0f, 0.0f);
+        return sd.shading_frame.to_world(wi_local);
+    }
+
+    // vec3 h_local = (wi_local + wo_local).normalize();
+    vec3 h_local = wi_local + wo_local;
+    const float h_len = std::sqrt(h_local.x * h_local.x
+                                + h_local.y * h_local.y
+                                + h_local.z * h_local.z);
+    if (h_len <= 0.0f)
+    {
+        pdf = 0.0f;
+        reflected_colour = color(0.0f, 0.0f, 0.0f);
+        return sd.shading_frame.to_world(wi_local);
+    }
+    h_local = h_local / h_len;
+
+    //~ spec = rho * F * D * G / (4 cos_o cos_i)
+    //~ diff = rho * (1-F) * 1/pi
+    const float D  = ggx::d(h_local, alpha);
+    const float G  = ggx::g(wi_local, wo_local, alpha);
+    const float wo_dot_h = std::max(math::epsilon<float>,
+                               std::fabs(math::dot(wo_local, h_local)));
+    const float F  = fresnel::dielectric(wo_dot_h, int_ior, ext_ior);
+
+    const float denom_spec = 4.0f * std::max(math::epsilon<float>, wo_local.z)
+                                  * std::max(math::epsilon<float>, wi_local.z);
+
+    const color f_spec = rho * F          * (D * G / denom_spec);
+    const color f_diff = rho * (1.0f - F) * (1.0f / math::pi<float>);
+
+    // TODO: try out Kulla-Conty energy preserving fix - rho should not
+    // appear on spec multi scattering compensation needed
+    const float pdf_spec = D * std::fabs(h_local.z) / (4.0f * wo_dot_h);
+    const float pdf_diff = wi_local.z / math::pi<float>;
+
+    //~ MIS combined PDF F_pick weight matches the lobe pick probability
+    pdf = F_pick * pdf_spec + (1.0f - F_pick) * pdf_diff;
+    if (pdf <= 0.0f || !std::isfinite(pdf))
+    {
+        pdf = 0.0f;
+        reflected_colour = color(0.0f, 0.0f, 0.0f);
+        return sd.shading_frame.to_world(wi_local);
+    }
+
+    reflected_colour = f_spec + f_diff;
+    return sd.shading_frame.to_world(wi_local);
+}
+
+fox_tracer::color fox_tracer::bsdf::plastic::evaluate(
+    const shading_data &sd, const vec3 &wi)
+{
+    //~ reference: fr = F * D*G / (4 cos_o cos_i)  +  (1-F) * rho/pi
+    const vec3 wo_local = sd.shading_frame.to_local(sd.wo);
+    const vec3 wi_local = sd.shading_frame.to_local(wi);
+
+    if (wi_local.z <= 0.0f || wo_local.z <= 0.0f)
+        return {0.0f, 0.0f, 0.0f};
+
+    vec3 h_local = wi_local + wo_local;
+    const float h_len = std::sqrt(h_local.x * h_local.x
+                                + h_local.y * h_local.y
+                                + h_local.z * h_local.z);
+    if (h_len <= 0.0f) return {0.0f, 0.0f, 0.0f};
+    h_local = h_local / h_len;
+
+    const float D  = ggx::d(h_local, alpha);
+    const float G  = ggx::g(wi_local, wo_local, alpha);
+    const float wo_dot_h = std::max(math::epsilon<float>,
+                               std::fabs(math::dot(wo_local, h_local)));
+    const float F  = fresnel::dielectric(wo_dot_h, int_ior, ext_ior);
+
+    const color rho = albedo->sample(sd.tu, sd.tv);
+    const float denom_spec = 4.0f * wo_local.z * wi_local.z;
+
+    const color f_spec = rho * F          * (D * G / denom_spec);
+    const color f_diff = rho * (1.0f - F) * (1.0f / math::pi<float>);
+    return f_spec + f_diff;
+}
+
+float fox_tracer::bsdf::plastic::pdf(const shading_data &sd, const vec3 &wi)
+{
+    //~ refernce: fpick * pspec + (1-fpick) * p_diff
+    const vec3 wo_local = sd.shading_frame.to_local(sd.wo);
+    const vec3 wi_local = sd.shading_frame.to_local(wi);
+
+    if (wi_local.z <= 0.0f || wo_local.z <= 0.0f) return 0.0f;
+
+    vec3 h_local = wi_local + wo_local;
+    const float h_len = std::sqrt(h_local.x * h_local.x
+                                + h_local.y * h_local.y
+                                + h_local.z * h_local.z);
+    if (h_len <= 0.0f) return 0.0f;
+    h_local = h_local / h_len;
+
+    const float D = ggx::d(h_local, alpha);
+    const float wo_dot_h = std::max(math::epsilon<float>,
+                               std::fabs(math::dot(wo_local, h_local)));
+    const float F_pick = fresnel::dielectric(wo_local.z, int_ior, ext_ior);
+
+    const float pdf_spec = D * std::fabs(h_local.z) / (4.0f * wo_dot_h);
+    const float pdf_diff = wi_local.z / math::pi<float>;
+    return F_pick * pdf_spec + (1.0f - F_pick) * pdf_diff;
+}
+
+float fox_tracer::bsdf::plastic::mask(const shading_data &sd)
+{
+    return albedo->sample_alpha(sd.tu, sd.tv);
+}
+
+bool fox_tracer::bsdf::plastic::is_pure_specular() const
+{
+    return false;
+}
+
+bool fox_tracer::bsdf::plastic::is_two_sided() const
 {
     return true;
 }
