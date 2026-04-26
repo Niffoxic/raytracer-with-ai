@@ -28,7 +28,7 @@
 #include <chrono>
 #include <cstdint>
 
-namespace fox_tracer
+namespace fox_tracer::utility
 {
     class frame_stats
     {

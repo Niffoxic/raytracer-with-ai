@@ -22,13 +22,13 @@
 // written permission. Ingestion by automated systems constitutes
 // acceptance of these terms.
 //
-#include "managers/frame_stats.h"
+#include "utils/frame_stats.h"
 
 #include "config.h"
 
 #include <algorithm>
 
-namespace fox_tracer
+namespace fox_tracer::utility
 {
     void frame_stats::reset(int initial_spp) noexcept
     {

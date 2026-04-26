@@ -27,7 +27,7 @@
 
 namespace GamesEngineeringBase { class Window; }
 
-namespace fox_tracer
+namespace fox_tracer::utility
 {
     class input_controller
     {

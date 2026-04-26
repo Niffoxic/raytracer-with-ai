@@ -23,7 +23,7 @@
 // acceptance of these terms.
 //
 
-#include "managers/input_controller.h"
+#include "utils/input_controller.h"
 
 #include "config.h"
 #include "scene/scene_loader.h"
@@ -32,7 +32,7 @@
 #include <windows.h>
 #include <algorithm>
 
-namespace fox_tracer
+namespace fox_tracer::utility
 {
     void input_controller::process(GamesEngineeringBase::Window* window)
     {
