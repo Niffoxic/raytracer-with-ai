@@ -249,6 +249,10 @@ namespace fox_tracer
         [[nodiscard]] __forceinline
         float dot(const vec3& a, const vec3& b)  noexcept { return a.dot(b); }
 
+        [[nodiscard]] vec3 yaw_pitch_forward(float yaw, float pitch) noexcept;
+        [[nodiscard]] vec3 yaw_pitch_right  (float yaw)              noexcept;
+
+
         [[nodiscard]] __forceinline
         vec3 cross(const vec3& a, const vec3& b) noexcept { return a.cross(b); }
 

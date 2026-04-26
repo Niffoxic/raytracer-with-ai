@@ -397,7 +397,7 @@ namespace fox_tracer
 
     namespace math
     {
-        color apply_gamma(const color& c, float gamma) noexcept
+        color apply_gamma(const color& c, const float gamma) noexcept
         {
             const float inv_gamma = 1.0f / (gamma > 0.0f ? gamma : 2.2f);
             return {
@@ -405,6 +405,19 @@ namespace fox_tracer
                 std::pow(saturate(c.green), inv_gamma),
                 std::pow(saturate(c.blue),  inv_gamma)
             };
+        }
+
+        vec3 yaw_pitch_forward(const float yaw, const float pitch) noexcept
+        {
+            const float cp = std::cos(pitch);
+            return vec3(std::sin(yaw) * cp,
+                        std::sin(pitch),
+                        -std::cos(yaw) * cp).normalize();
+        }
+
+        vec3 yaw_pitch_right(const float yaw) noexcept
+        {
+            return vec3(std::cos(yaw), 0.0f, std::sin(yaw)).normalize();
         }
 
         vec3 min(const vec3& a, const vec3& b) noexcept

@@ -316,6 +316,13 @@ namespace fox_tracer::loader
         return meshes.size() > before;
     }
 
+    bool glb_model_adapter::load(const std::string &filename, std::vector<gem_mesh> &meshes)
+    {
+        const size_t before = meshes.size();
+        adaptee.load(filename, meshes);
+        return meshes.size() > before;
+    }
+
     std::unique_ptr<interface_model> make_model_loader(const std::string& filename)
     {
         const size_t dot = filename.find_last_of('.');

@@ -101,6 +101,8 @@ namespace fox_tracer::loader
     public:
         bool load(const std::string& filename,
                   std::vector<gem_mesh>& meshes) override;
+    private:
+        GEMLoader::GEMModelLoader adaptee;
     };
 
     std::unique_ptr<interface_model> make_model_loader(const std::string& filename);

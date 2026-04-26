@@ -47,14 +47,29 @@ namespace fox_tracer
         static constexpr int  hemisphere_mode  = static_cast<int>(hemisphere_sampling::cosine_weighted);
         static constexpr int  light_pick_mode  = static_cast<int>(light_pick::uniform);
         static constexpr bool use_bvh = true;
+
+        //~ Camera
+        static constexpr float fov               = 45.0f;
+        static constexpr float move_speed        = 1.0f;
+        static constexpr float mouse_sensitivity = 0.0025f;
+        static constexpr float lens_radius       = 0.0f;
+        static constexpr float focal_distance    = 1.0f;
+
+        //~ assets
+        static constexpr bool normalize_obj      = true;
+        static constexpr float normalize_obj_max = 1.0f;
     };
 
     struct rt_config
     {
-        std::atomic<int>  hemisphere_mode{ rt_defaults::hemisphere_mode };
-        std::atomic<bool> use_bvh        { rt_defaults::use_bvh };
-        std::atomic<int>  light_pick_mode{ rt_defaults::light_pick_mode };
+        std::atomic<int>  hemisphere_mode   { rt_defaults::hemisphere_mode };
+        std::atomic<bool> use_bvh           { rt_defaults::use_bvh };
+        std::atomic<int>  light_pick_mode   { rt_defaults::light_pick_mode };
+        std::atomic<float> mouse_sensitivity{rt_defaults::mouse_sensitivity};
 
+        //~ assets
+        std::atomic<bool>  normalize_obj    {rt_defaults::normalize_obj};
+        std::atomic<float> normalize_obj_max{rt_defaults::normalize_obj_max};
     };
 
     inline rt_config& config() noexcept
