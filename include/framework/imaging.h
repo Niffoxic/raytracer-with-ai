@@ -147,6 +147,30 @@ namespace fox_tracer
             [[nodiscard]] int   size     () const override;
         };
 
+        class mitchell_netravali_filter : public image_filter
+        {
+        public:
+            float b_param;
+            float c_param;
+            vec2  radius_xy{2.0f, 2.0f};
+
+            explicit mitchell_netravali_filter(float _b = 1.0f / 3.0f,
+                                               float _c = 1.0f / 3.0f,
+                                               float rx = 2.0f,
+                                               float ry = 2.0f);
+
+            [[nodiscard]] float mitchell_1d (float x) const;
+
+            [[nodiscard]] float         filter  (float x, float y)   const override;
+            [[nodiscard]] float         evaluate(float x, float y)   const override;
+            [[nodiscard]] filter_sample sample  (float u1, float u2) const override;
+
+            [[nodiscard]] vec2  radius_2d() const override;
+            [[nodiscard]] float integral () const override;
+            [[nodiscard]] int   size     () const override;
+        private:
+            std::unique_ptr<filter_sampler> sampler_;
+        };
     }
 
     struct tonemap_params

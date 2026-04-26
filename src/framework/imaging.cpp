@@ -425,6 +425,72 @@ int fox_tracer::filter::gaussian_filter::size() const
                     static_cast<int>(std::ceil(radius_xy.y)));
 }
 
+fox_tracer::filter::mitchell_netravali_filter::mitchell_netravali_filter(
+    const float _b, const float _c,
+    const float rx, const float ry)
+: b_param(_b), c_param(_c), radius_xy(rx, ry)
+{
+    sampler_ = std::make_unique<filter_sampler>(*this, 32);
+}
+
+float fox_tracer::filter::mitchell_netravali_filter::mitchell_1d(float x) const
+{
+    //~ TODO: make B, C configurable from imgui so that I can have B-spile fam
+    x = std::fabs(x);
+    if (x < 1.0f)
+    {
+        return (1.0f / 6.0f) * (
+            (12.0f - 9.0f * b_param - 6.0f * c_param) * x * x * x +
+            (-18.0f + 12.0f * b_param + 6.0f * c_param) * x * x +
+            (6.0f - 2.0f * b_param));
+    }
+    if (x < 2.0f)
+    {
+        return (1.0f / 6.0f) * (
+            (-b_param - 6.0f * c_param) * x * x * x +
+            (6.0f * b_param + 30.0f * c_param) * x * x +
+            (-12.0f * b_param - 48.0f * c_param) * x +
+            (8.0f * b_param + 24.0f * c_param));
+    }
+    return 0.0f;
+}
+
+float fox_tracer::filter::mitchell_netravali_filter::filter(const float x, const float y) const
+{
+    const float sx = (radius_xy.x > 0.0f) ? (2.0f / radius_xy.x) : 0.0f;
+    const float sy = (radius_xy.y > 0.0f) ? (2.0f / radius_xy.y) : 0.0f;
+    return mitchell_1d(x * sx) * mitchell_1d(y * sy);
+}
+
+float fox_tracer::filter::mitchell_netravali_filter::evaluate(const float x, const float y) const
+{
+        return filter(x, y);
+}
+
+fox_tracer::filter::filter_sample fox_tracer::filter::mitchell_netravali_filter::sample(
+    const float u1, const float u2) const
+{
+    filter_sample s = sampler_->sample(u1, u2);
+    if (evaluate(s.x, s.y) < 0.0f) s.weight = -s.weight;
+    return s;
+}
+
+fox_tracer::vec2 fox_tracer::filter::mitchell_netravali_filter::radius_2d() const
+{
+    return image_filter::radius_2d();
+}
+
+float fox_tracer::filter::mitchell_netravali_filter::integral() const
+{
+    return (radius_xy.x * 0.5f) * (radius_xy.y * 0.5f);
+}
+
+int fox_tracer::filter::mitchell_netravali_filter::size() const
+{
+    return std::max(static_cast<int>(std::ceil(radius_xy.x)),
+                    static_cast<int>(std::ceil(radius_xy.y)));
+}
+
 // TODO: look at some famous tonemap from some games and create an enum for selecting any of them runtime
 namespace
 {
