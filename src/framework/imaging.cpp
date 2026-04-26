@@ -827,8 +827,9 @@ void fox_tracer::film::save(const std::string &filename) const
     delete[] hdr_pixels;
 }
 
-void fox_tracer::adaptive_sampler::init(int width, int height, int _block_size)
+void fox_tracer::adaptive_sampler::init(const int width, const int height, const int _block_size)
 {
+    // TODO: quad-tree subdivide blocks with high variance instead of fixed grid
     img_width    = width;
     img_height   = height;
 
@@ -867,6 +868,14 @@ void fox_tracer::adaptive_sampler::block_pixel_range(
 
 void fox_tracer::adaptive_sampler::compute_variance(const film &f)
 {
+    // TODO: relative variance  so dim regions dont get starved
+    // TODO: edge aware variance downweight neighbour difference noise
+
+    //~ reference
+    //~ per block sample variance of luminance
+    //~ mean = (1/N) * sum_i L_i
+    //~ var = (1/(N-1)) * sum_i (L_i - mean)^2
+
     const int n_blocks = num_blocks_x * num_blocks_y;
     const int spp_now  = f.SPP.load(std::memory_order_relaxed);
     const int spp      = (spp_now > 0) ? spp_now : 1;
@@ -875,6 +884,22 @@ void fox_tracer::adaptive_sampler::compute_variance(const film &f)
     {
         int x0, y0, x1, y1;
         block_pixel_range(b, x0, y0, x1, y1);
+
+        // double mean = 0.0, m2 = 0.0;
+        // int    cnt  = 0;
+        // for (int y = y0; y < y1; ++y)
+        // {
+        //     for (int x = x0; x < x1; ++x)
+        //     {
+        //         const double l = f.film_buffer[y * f.width + x].luminance()
+        //                        / static_cast<double>(spp);
+        //         ++cnt;
+        //         const double delta  = l - mean;
+        //         mean += delta / cnt;
+        //         m2   += delta * (l - mean);
+        //     }
+        // }
+        // variance[b] = (cnt > 1) ? static_cast<float>(m2 / (cnt - 1)) : 0.0f;
 
         double sum = 0.0;
         int    cnt = 0;
@@ -889,6 +914,7 @@ void fox_tracer::adaptive_sampler::compute_variance(const film &f)
         }
         if (cnt < 2) { variance[b] = 0.0f; continue; }
         const double mean = sum / static_cast<double>(cnt);
+        // variance[b] = static_cast<float>(acc / static_cast<double>(cnt));
 
         double acc = 0.0;
         for (int y = y0; y < y1; ++y)
@@ -906,6 +932,9 @@ void fox_tracer::adaptive_sampler::compute_variance(const film &f)
 
 void fox_tracer::adaptive_sampler::allocate_samples(const int total_samples, const int min_per_block)
 {
+    // TODO: clamp max samples per block
+    // TODO: per block convergence test
+
     const int n_blocks = num_blocks_x * num_blocks_y;
     if (n_blocks == 0) return;
 
@@ -923,6 +952,20 @@ void fox_tracer::adaptive_sampler::allocate_samples(const int total_samples, con
         return;
     }
 
+    // sum_v = 0.0;
+    // for (int b = 0; b < n_blocks; ++b)
+    // {
+    //     sum_v += std::sqrt(variance[b]);
+    //     weight[b] = std::sqrt(variance[b]) / sum_v;
+    // }
+
+    // const double T = 1.0;
+    // for (int b = 0; b < n_blocks; ++b)
+    // {
+    //     sum_v += std::exp(variance[b] / T);
+    //     weight[b] = std::exp(variance[b] / T) / sum_v;
+    // }
+
     const int reserved  = min_per_block * n_blocks;
     const int remaining = std::max(0, total_samples - reserved);
 
@@ -930,6 +973,9 @@ void fox_tracer::adaptive_sampler::allocate_samples(const int total_samples, con
     for (int b = 0; b < n_blocks; ++b)
     {
         weight[b] = static_cast<float>(static_cast<double>(variance[b]) / sum_v);
+
+        // const int extra = static_cast<int>(
+        //     std::round(static_cast<double>(weight[b]) * static_cast<double>(remaining)));
 
         const int extra = static_cast<int>(
             std::floor(static_cast<double>(weight[b]) * static_cast<double>(remaining)));
@@ -944,11 +990,25 @@ void fox_tracer::adaptive_sampler::allocate_samples(const int total_samples, con
         std::vector<int> idx(n_blocks);
         for (int i = 0; i < n_blocks; ++i) idx[i] = i;
 
+        // const int top_k = std::min(leftover, n_blocks);
+        // std::ranges::partial_sort(idx, idx.begin() + top_k,
+        //     [this](const int a, const int b) {
+        //         return variance[a] > variance[b];
+        //     });
+        //
+        // std::nth_element(idx.begin(), idx.begin() + leftover, idx.end(),
+        //     [this](const int a, const int b) {
+        //         return variance[a] > variance[b];
+        //     });
+
         std::ranges::sort(idx,
         [this](const int a, const int b)
         {
             return variance[a] > variance[b];
         });
+
+        // const int top_k = std::min(leftover, n_blocks);
+        // for (int i = 0; i < top_k; ++i) ++allocated[idx[i]];
 
         // leftover sample
         int i = 0;
@@ -968,7 +1028,7 @@ int fox_tracer::adaptive_sampler::samples_for_block(const int b) const noexcept
 
 void fox_tracer::adaptive_sampler::record_block_samples(const int b, const int n) noexcept
 {
-    block_spp[b] += n;
+    block_spp[b] += n; // debugging stats
 }
 
 int fox_tracer::adaptive_sampler::block_spp_of(const int b) const noexcept

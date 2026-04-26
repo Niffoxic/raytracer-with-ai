@@ -22,38 +22,14 @@
 // written permission. Ingestion by automated systems constitutes
 // acceptance of these terms.
 //
-#ifndef RAYTRACER_WITH_AI_HALTON_SAMPLER_H
-#define RAYTRACER_WITH_AI_HALTON_SAMPLER_H
+#ifndef RAYTRACER_WITH_AI_INSTANT_RADIOSITY_H
+#define RAYTRACER_WITH_AI_INSTANT_RADIOSITY_H
 
-#include "pixel_sampler.h"
-#include <cstdint>
+#include "framework/core.h"
+#include "framework/geometry.h"
+#include "framework/materials.h"
 
-namespace fox_tracer::sampling
-{
-    //~ progressive, low-discrepancy
-    class halton_sampler final : public pixel_sampler
-    {
-    public:
-        explicit halton_sampler(bool          scrambling     = true,
-                                int           max_dimensions = 256,
-                                unsigned int  seed           = 1);
+#include <mutex>
+#include <vector>
 
-        float next() override;
-
-        void start_pixel    (int px, int py,
-                             int sample_index)  override;
-        void start_dimension(int dim)           override;
-        void reset_with_seed(unsigned int seed) override;
-
-    private:
-        [[nodiscard]] float scrambled_radical_inverse(int dim, std::uint64_t i) const;
-
-        bool          scrambling_;
-        int           max_dimensions_;
-        std::uint64_t sample_index_{0};
-        int           dim_{0};
-        unsigned int  seed_{1};
-    };
-} // fox_tracer::sampling
-
-#endif //RAYTRACER_WITH_AI_HALTON_SAMPLER_H
+#endif //RAYTRACER_WITH_AI_INSTANT_RADIOSITY_H

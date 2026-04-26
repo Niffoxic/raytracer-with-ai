@@ -510,30 +510,4 @@ namespace fox_tracer
             return pers;
         }
     } // namespace transform
-
-    namespace sampling
-    {
-        vec3 spherical_to_world(const float theta, const float phi) noexcept
-        {
-            const float sin_theta = std::sin(theta);
-            return {
-                std::cos(phi) * sin_theta,
-                std::sin(phi) * sin_theta,
-                std::cos(theta),
-                1.0f
-            };
-        }
-
-        float spherical_theta(const vec3& wi) noexcept
-        {
-            return std::acos(math::saturate((wi.z + 1.0f) * 0.5f) * 2.0f - 1.0f);
-        }
-
-        float spherical_phi(const vec3& wi) noexcept
-        {
-            const float p = std::atan2(wi.y, wi.x);
-            return (p < 0.0f) ? p + (2.0f * math::pi<float>) : p;
-        }
-    } // namespace sampling
-
 } // namespace fox_tracer

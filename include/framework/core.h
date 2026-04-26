@@ -270,14 +270,6 @@ namespace fox_tracer
         [[nodiscard]] matrix perspective(float near_plane, float far_plane,
                                          float aspect,     float fov_deg) noexcept;
     }
-
-    namespace sampling
-    {
-        [[nodiscard]] vec3  spherical_to_world(float theta, float phi) noexcept;
-        [[nodiscard]] float spherical_theta   (const vec3& wi) noexcept;
-        [[nodiscard]] float spherical_phi     (const vec3& wi) noexcept;
-    }
-
 }
 
 #endif //RAYTRACER_WITH_AI_CORE_H

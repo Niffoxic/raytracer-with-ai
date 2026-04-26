@@ -54,8 +54,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(stb)
 
 # compile stb once
-set(STB_IMPL_FILE ${CMAKE_BINARY_DIR}/stb_impl.c
-        src/sampling/sobol_sampler.cpp)
+set(STB_IMPL_FILE ${CMAKE_BINARY_DIR}/stb_impl.c)
 file(CONFIGURE OUTPUT ${STB_IMPL_FILE} CONTENT
         "#define STB_IMAGE_IMPLEMENTATION
         #include \"stb_image.h\"
@@ -89,15 +88,18 @@ file(GLOB OIDN_RUNTIME_DLLS
 
 # source
 add_executable(tracer_engine src/main.cpp
-        src/core.cpp
-        src/imaging.cpp
-        src/sampling/sampling.cpp
-        src/sampling/independent_sampler.cpp
-        src/sampling/halton_sampler.cpp
-        src/sampling/stratified_sampler.cpp
+        src/framework/core.cpp
+        src/framework/imaging.cpp
+        src/sampler/sampling.cpp
+        src/sampler/independent_sampler.cpp
+        src/sampler/halton_sampler.cpp
+        src/sampler/stratified_sampler.cpp
+        src/sampler/sobol_sampler.cpp
         src/framework/materials.cpp
         src/framework/geometry.cpp
-        src/framework/lights.cpp)
+        src/framework/lights.cpp
+        src/render/instant_radiosity.cpp
+        src/utils/helper.cpp)
 
 target_include_directories(tracer_engine PRIVATE include/)
 target_compile_definitions(tracer_engine PRIVATE
