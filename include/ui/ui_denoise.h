@@ -22,11 +22,26 @@
 // written permission. Ingestion by automated systems constitutes
 // acceptance of these terms.
 //
-#ifndef RAYTRACER_WITH_AI_RENDERER_H
-#define RAYTRACER_WITH_AI_RENDERER_H
+#ifndef RAYTRACER_WITH_AI_UI_DENOISE_H
+#define RAYTRACER_WITH_AI_UI_DENOISE_H
 
-namespace fox_tracer::render
+#include "ui/ui_component.h"
+#include <chrono>
+
+namespace fox_tracer::ui
 {
-} // fox_tracer::render
+    class denoise_component : public interface_component
+    {
+    public:
+        denoise_component() = default;
+        void draw(ui_context& ctx) override;
 
-#endif //RAYTRACER_WITH_AI_RENDERER_H
+    private:
+        int                                   last_seen_status_{0};
+        std::chrono::steady_clock::time_point toast_tp_{};
+        bool                                  toast_active_{false};
+    };
+} // namespace fox_tracer::ui
+
+
+#endif //RAYTRACER_WITH_AI_UI_DENOISE_H

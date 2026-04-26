@@ -114,7 +114,8 @@ add_executable(tracer_engine src/main.cpp
         src/utils/python_env.cpp
         src/scene/scene_host.cpp
         src/ui/image_gallery.cpp
-        src/ui/ai_panel.cpp)
+        src/ui/ai_panel.cpp
+        src/ui/ui_denoise.cpp)
 
 target_include_directories(tracer_engine PRIVATE include/)
 target_compile_definitions(tracer_engine PRIVATE
