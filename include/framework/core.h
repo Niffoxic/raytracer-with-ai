@@ -223,9 +223,10 @@ namespace fox_tracer
         matrix& operator=(const matrix& rhs) noexcept;
 
         [[nodiscard]] vec3 mul_vec      (const vec3& v) const noexcept;
+        [[nodiscard]] vec3 mul_point    (const vec3 &v) const noexcept;
         [[nodiscard]] vec3 mul_position (const vec3& v) const noexcept;
 
-        [[nodiscard]] vec3 mul_position_and_perspective_divide(const vec3& v) const noexcept;
+        [[nodiscard]] vec3 mul_point_and_perspective_divide(const vec3& v) const noexcept;
     };
 
     class frame

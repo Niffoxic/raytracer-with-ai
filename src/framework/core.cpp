@@ -256,6 +256,15 @@ namespace fox_tracer
         };
     }
 
+    vec3 matrix::mul_point(const vec3& v) const noexcept
+    {
+        return {
+            (v.x * m[0] + v.y * m[1] + v.z * m[2]) + m[3],
+            (v.x * m[4] + v.y * m[5] + v.z * m[6]) + m[7],
+            (v.x * m[8] + v.y * m[9] + v.z * m[10]) + m[11]
+        };
+    }
+
     vec3 matrix::mul_position(const vec3 &v) const noexcept
     {
         return {
@@ -266,7 +275,7 @@ namespace fox_tracer
         };
     }
 
-    vec3 matrix::mul_position_and_perspective_divide(const vec3 &v) const noexcept
+    vec3 matrix::mul_point_and_perspective_divide(const vec3 &v) const noexcept
     {
         const vec3 p(
         (v.x * m[0] + v.y * m[1] + v.z * m[2])  + m[3],

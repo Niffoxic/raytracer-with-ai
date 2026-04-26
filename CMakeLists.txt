@@ -102,7 +102,10 @@ add_executable(tracer_engine src/main.cpp
         src/utils/helper.cpp
         src/utils/logger.cpp
         src/utils/paths.cpp
-        src/utils/assets_loader.cpp)
+        src/utils/assets_loader.cpp
+        include/scene/scene_loader.h
+        src/scene/scene_loader.cpp
+        src/scene/scene.cpp)
 
 target_include_directories(tracer_engine PRIVATE include/)
 target_compile_definitions(tracer_engine PRIVATE
