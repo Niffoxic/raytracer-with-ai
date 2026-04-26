@@ -537,6 +537,46 @@ int fox_tracer::filter::triangle_filter::size() const
                 static_cast<int>(std::ceil(radius_xy.y)));
 }
 
+fox_tracer::filter::lanczos_sinc_filter::lanczos_sinc_filter(float rx, float ry, float _tau)
+    : radius_xy(rx, ry), tau(_tau)
+{
+    sampler_ = std::make_unique<filter_sampler>(*this, 32);
+}
+
+float fox_tracer::filter::lanczos_sinc_filter::filter(float x, float y) const
+{
+    return evaluate(x, y);
+}
+
+float fox_tracer::filter::lanczos_sinc_filter::evaluate(float x, float y) const
+{
+    return math::windowed_sinc<float>(x, radius_xy.x, tau)
+         * math::windowed_sinc<float>(y, radius_xy.y, tau);
+}
+
+fox_tracer::filter::filter_sample fox_tracer::filter::lanczos_sinc_filter::sample(float u1, float u2) const
+{
+    filter_sample s = sampler_->sample(u1, u2);
+    if (evaluate(s.x, s.y) < 0.0f) s.weight = -s.weight;
+    return s;
+}
+
+fox_tracer::vec2 fox_tracer::filter::lanczos_sinc_filter::radius_2d() const
+{
+    return radius_xy;
+}
+
+float fox_tracer::filter::lanczos_sinc_filter::integral() const
+{
+    return 2.0f * radius_xy.x * 2.0f * radius_xy.y;
+}
+
+int fox_tracer::filter::lanczos_sinc_filter::size() const
+{
+    return std::max(static_cast<int>(std::ceil(radius_xy.x)),
+                    static_cast<int>(std::ceil(radius_xy.y)));
+}
+
 // TODO: look at some famous tonemap from some games and create an enum for selecting any of them runtime
 namespace
 {

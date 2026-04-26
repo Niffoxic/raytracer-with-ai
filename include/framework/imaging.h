@@ -187,6 +187,27 @@ namespace fox_tracer
             [[nodiscard]] float integral () const override;
             [[nodiscard]] int   size     () const override;
         };
+
+        class lanczos_sinc_filter : public image_filter
+        {
+        public:
+            vec2  radius_xy;
+            float tau;
+
+            explicit lanczos_sinc_filter(float rx = 2.0f, float ry = 2.0f,
+                                         float _tau = 3.0f);
+
+            [[nodiscard]] float         filter  (float x, float y)   const override;
+            [[nodiscard]] float         evaluate(float x, float y)   const override;
+            [[nodiscard]] filter_sample sample  (float u1, float u2) const override;
+
+            [[nodiscard]] vec2  radius_2d() const override;
+            [[nodiscard]] float integral () const override;
+            [[nodiscard]] int   size     () const override;
+
+        private:
+            std::unique_ptr<filter_sampler> sampler_;
+        };
     }
 
     struct tonemap_params
