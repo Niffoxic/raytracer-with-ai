@@ -882,6 +882,55 @@ bool fox_tracer::bsdf::plastic::is_two_sided() const
     return true;
 }
 
+fox_tracer::bsdf::layered::layered(
+    base *_base, const color &_sigma_a,
+    const float _thickness, const float _int_ior,
+    const float _ext_ior) noexcept
+    :   substrate(_base), sigma_a(_sigma_a),
+        thickness(_thickness), int_ior(_int_ior),
+        ext_ior(_ext_ior)
+{
+    // TODO: full coated dielectric
+}
+
+fox_tracer::vec3 fox_tracer::bsdf::layered::sample(
+    const shading_data &sd, sampler *s,
+    color &reflected_colour, float &pdf)
+{
+    // TODO: position-free Monte Carlo for arbitrary stacks
+    // TODO: precomputed albedo tables for real-time eval
+    return substrate->sample(sd, s, reflected_colour, pdf);
+}
+
+fox_tracer::color fox_tracer::bsdf::layered::evaluate(
+    const shading_data &sd, const vec3 &wi)
+{
+    // TODO: fr = fr_top(wo, wi) + T(wo) * absorb * fr_sub(wo', wi') * T(wi)
+    //   with wo'/wi' the refracted directions inside the medium
+    return substrate->evaluate(sd, wi);
+}
+
+float fox_tracer::bsdf::layered::pdf(const shading_data &sd, const vec3 &wi)
+{
+    // TODO: F in * pdf top + (1 - Fin) * pdf sub refracted
+    return substrate->pdf(sd, wi);
+}
+
+float fox_tracer::bsdf::layered::mask(const shading_data &sd)
+{
+    return substrate->mask(sd);
+}
+
+bool fox_tracer::bsdf::layered::is_pure_specular() const
+{
+   return substrate->is_pure_specular();
+}
+
+bool fox_tracer::bsdf::layered::is_two_sided() const
+{
+    return substrate->is_two_sided();
+}
+
 float fox_tracer::bsdf::fresnel::dielectric(
     float cos_theta, const float ior_int, const float ior_ext) noexcept
 {

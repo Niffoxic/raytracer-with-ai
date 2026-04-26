@@ -237,6 +237,30 @@ namespace fox_tracer
             [[nodiscard]] bool is_two_sided     () const override;
         };
 
+        class layered final: public base
+        {
+        public:
+            base*       substrate{nullptr};
+            color       sigma_a;
+            float       thickness{};
+            float       int_ior  {};
+            float       ext_ior  {};
+
+            layered() = default;
+            layered(base* _base, const color& _sigma_a, float _thickness,
+                    float _int_ior, float _ext_ior) noexcept;
+
+            vec3 sample(const shading_data& sd, sampler* s,
+                            color& reflected_colour, float& pdf) override;
+
+            color evaluate  (const shading_data& sd, const vec3& wi) override;
+            float pdf       (const shading_data& sd, const vec3& wi) override;
+            float mask      (const shading_data& sd)                 override;
+
+            [[nodiscard]] bool is_pure_specular() const override;
+            [[nodiscard]] bool is_two_sided    () const override;
+        };
+
         namespace fresnel
         {
             float dielectric(float cos_theta, float ior_int, float ior_ext) noexcept;
