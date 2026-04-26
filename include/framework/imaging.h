@@ -171,6 +171,22 @@ namespace fox_tracer
         private:
             std::unique_ptr<filter_sampler> sampler_;
         };
+
+        class triangle_filter : public image_filter
+        {
+        public:
+            vec2 radius_xy;
+
+            explicit triangle_filter(float rx = 2.0f, float ry = 2.0f) noexcept;
+
+            [[nodiscard]] float         filter  (float x, float y)   const override;
+            [[nodiscard]] float         evaluate(float x, float y)   const override;
+            [[nodiscard]] filter_sample sample  (float u1, float u2) const override;
+
+            [[nodiscard]] vec2  radius_2d() const override;
+            [[nodiscard]] float integral () const override;
+            [[nodiscard]] int   size     () const override;
+        };
     }
 
     struct tonemap_params

@@ -491,6 +491,52 @@ int fox_tracer::filter::mitchell_netravali_filter::size() const
                     static_cast<int>(std::ceil(radius_xy.y)));
 }
 
+fox_tracer::filter::triangle_filter::triangle_filter(const float rx, const float ry) noexcept
+    : radius_xy(rx, ry)
+{}
+
+float fox_tracer::filter::triangle_filter::filter(const float x, const float y) const
+{
+    return evaluate(x, y);
+}
+
+float fox_tracer::filter::triangle_filter::evaluate(float x, float y) const
+{
+    const float fx = std::max(0.0f, 1.0f - std::fabs(x) / radius_xy.x);
+    const float fy = std::max(0.0f, 1.0f - std::fabs(y) / radius_xy.y);
+    return fx * fy;
+}
+
+fox_tracer::filter::filter_sample fox_tracer::filter::triangle_filter::sample(
+    const float u1, const float u2) const
+{
+    auto tri = [](const float u)
+    {
+        return (u < 0.5f) ? (std::sqrt(2.0f * u) - 1.0f)
+                          : (1.0f - std::sqrt(2.0f - 2.0f * u));
+    };
+
+    return { tri(u1) * radius_xy.x,
+             tri(u2) * radius_xy.y,
+             1.0f };
+}
+
+fox_tracer::vec2 fox_tracer::filter::triangle_filter::radius_2d() const
+{
+    return radius_xy;
+}
+
+float fox_tracer::filter::triangle_filter::integral() const
+{
+    return radius_xy.x * radius_xy.y;
+}
+
+int fox_tracer::filter::triangle_filter::size() const
+{
+    return std::max(static_cast<int>(std::ceil(radius_xy.x)),
+                static_cast<int>(std::ceil(radius_xy.y)));
+}
+
 // TODO: look at some famous tonemap from some games and create an enum for selecting any of them runtime
 namespace
 {
