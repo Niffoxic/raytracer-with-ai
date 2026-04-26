@@ -356,6 +356,74 @@ int fox_tracer::filter::box_filter::size() const
                     static_cast<int>(std::ceil(ry)));
 }
 
+fox_tracer::filter::gaussian_filter::gaussian_filter(
+    const float rx, const float ry, const float _alpha)
+    : radius_xy(rx, ry), alpha(_alpha)
+{
+    exp_rx = std::exp(-alpha * rx * rx);
+    exp_ry = std::exp(-alpha * ry * ry);
+}
+
+float fox_tracer::filter::gaussian_filter::gaussian_1d(
+    const float d, const float exp_at_radius) const
+{
+    const float v = std::exp(-alpha * d * d) - exp_at_radius;
+    return v > 0.0f ? v : 0.0f;
+}
+
+float fox_tracer::filter::gaussian_filter::filter(const float x, const float y) const
+{
+    return evaluate(x, y);
+}
+
+float fox_tracer::filter::gaussian_filter::evaluate(const float x, const float y) const
+{
+    if (std::fabs(x) > radius_xy.x || std::fabs(y) > radius_xy.y) return 0.0f;
+    return gaussian_1d(x, exp_rx) * gaussian_1d(y, exp_ry);
+}
+
+fox_tracer::filter::filter_sample fox_tracer::filter::gaussian_filter::sample(const float u1, const float u2) const
+{
+    const float sqrt_a = std::sqrt(alpha);
+
+    auto sample_axis = [&](const float u, const float r)
+    {
+        const float arg     = u * std::erf(r * sqrt_a);
+        const float clamped = std::clamp(arg, -0.9999999f, 0.9999999f);
+        return math::erf_inv_approx<float>(clamped) / sqrt_a;
+    };
+
+    const float ux = 2.0f * u1 - 1.0f;
+    const float uy = 2.0f * u2 - 1.0f;
+
+    return { sample_axis(ux, radius_xy.x),
+             sample_axis(uy, radius_xy.y),
+             1.0f };
+}
+
+fox_tracer::vec2 fox_tracer::filter::gaussian_filter::radius_2d() const
+{
+    return image_filter::radius_2d();
+}
+
+float fox_tracer::filter::gaussian_filter::integral() const
+{
+    const float sqrt_a       = std::sqrt(alpha);
+    const float sqrt_pi_over_a = std::sqrt(math::pi<float> / alpha);
+
+    const float ix = sqrt_pi_over_a * std::erf(radius_xy.x * sqrt_a)
+                   - 2.0f * radius_xy.x * exp_rx;
+    const float iy = sqrt_pi_over_a * std::erf(radius_xy.y * sqrt_a)
+                   - 2.0f * radius_xy.y * exp_ry;
+
+    return ix * iy;
+}
+
+int fox_tracer::filter::gaussian_filter::size() const
+{
+    return std::max(static_cast<int>(std::ceil(radius_xy.x)),
+                    static_cast<int>(std::ceil(radius_xy.y)));
+}
 
 // TODO: look at some famous tonemap from some games and create an enum for selecting any of them runtime
 namespace

@@ -125,7 +125,28 @@ namespace fox_tracer
             [[nodiscard]] int   size     () const override;
         };
 
- 
+        class gaussian_filter : public image_filter
+        {
+        public:
+            vec2  radius_xy {1.5f, 1.5f};
+            float alpha     {2.0f};
+            float exp_rx    {0.0f};
+            float exp_ry    {0.0f};
+
+            explicit gaussian_filter(float rx = 1.5f, float ry = 1.5f,
+                                     float _alpha = 2.0f);
+
+            [[nodiscard]] float gaussian_1d(float d, float exp_at_radius) const;
+
+            [[nodiscard]] float         filter  (float x, float y)   const override;
+            [[nodiscard]] float         evaluate(float x, float y)   const override;
+            [[nodiscard]] filter_sample sample  (float u1, float u2) const override;
+
+            [[nodiscard]] vec2  radius_2d() const override;
+            [[nodiscard]] float integral () const override;
+            [[nodiscard]] int   size     () const override;
+        };
+
     }
 
     struct tonemap_params
