@@ -101,7 +101,8 @@ add_executable(tracer_engine src/main.cpp
         src/render/instant_radiosity.cpp
         src/utils/helper.cpp
         src/utils/logger.cpp
-        src/utils/paths.cpp)
+        src/utils/paths.cpp
+        src/utils/assets_loader.cpp)
 
 target_include_directories(tracer_engine PRIVATE include/)
 target_compile_definitions(tracer_engine PRIVATE
