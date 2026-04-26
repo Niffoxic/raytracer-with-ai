@@ -106,7 +106,8 @@ add_executable(tracer_engine src/main.cpp
         include/scene/scene_loader.h
         src/scene/scene_loader.cpp
         src/scene/scene.cpp
-        src/scene/scene_editor.cpp)
+        src/scene/scene_editor.cpp
+        src/managers/frame_stats.cpp)
 
 target_include_directories(tracer_engine PRIVATE include/)
 target_compile_definitions(tracer_engine PRIVATE

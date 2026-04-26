@@ -58,6 +58,9 @@ namespace fox_tracer
         //~ assets
         static constexpr bool normalize_obj      = true;
         static constexpr float normalize_obj_max = 1.0f;
+
+        //~ UI Properties
+        static constexpr bool pause_render = false;
     };
 
     struct rt_config
@@ -70,6 +73,15 @@ namespace fox_tracer
         //~ assets
         std::atomic<bool>  normalize_obj    {rt_defaults::normalize_obj};
         std::atomic<float> normalize_obj_max{rt_defaults::normalize_obj_max};
+
+        //~ properties
+        std::atomic<std::uint32_t>   reset_generation{0};
+        std::atomic<bool>           pause_render{rt_defaults::pause_render};
+
+        void request_reset() noexcept
+        {
+            reset_generation.fetch_add(1, std::memory_order_release);
+        }
     };
 
     inline rt_config& config() noexcept
