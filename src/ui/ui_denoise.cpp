@@ -28,13 +28,11 @@
 #include "render/renderer.h"
 
 #include <imgui.h>
-
 #include <algorithm>
 #include <string>
 
 namespace fox_tracer::ui
 {
-
     void denoise_component::draw(ui_context& ctx)
     {
         const int st = static_cast<int>(ctx.rt->current_denoise_status());

@@ -103,7 +103,6 @@ add_executable(tracer_engine src/main.cpp
         src/utils/logger.cpp
         src/utils/paths.cpp
         src/utils/assets_loader.cpp
-        include/scene/scene_loader.h
         src/scene/scene_loader.cpp
         src/scene/scene.cpp
         src/scene/scene_editor.cpp
@@ -115,7 +114,9 @@ add_executable(tracer_engine src/main.cpp
         src/scene/scene_host.cpp
         src/ui/image_gallery.cpp
         src/ui/ai_panel.cpp
-        src/ui/ui_denoise.cpp)
+        src/ui/ui_denoise.cpp
+        src/ui/main_menu_bar.cpp
+)
 
 target_include_directories(tracer_engine PRIVATE include/)
 target_compile_definitions(tracer_engine PRIVATE
