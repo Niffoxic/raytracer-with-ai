@@ -68,7 +68,13 @@ namespace fox_tracer
         std::atomic<int>  hemisphere_mode   { rt_defaults::hemisphere_mode };
         std::atomic<bool> use_bvh           { rt_defaults::use_bvh };
         std::atomic<int>  light_pick_mode   { rt_defaults::light_pick_mode };
+
+        //~ camera settings
+        std::atomic<float> fov              {rt_defaults::fov};
+        std::atomic<float> move_speed       {rt_defaults::move_speed};
         std::atomic<float> mouse_sensitivity{rt_defaults::mouse_sensitivity};
+        std::atomic<float> lens_radius      {rt_defaults::lens_radius};
+        std::atomic<float> focal_distance   {rt_defaults::focal_distance};
 
         //~ assets
         std::atomic<bool>  normalize_obj    {rt_defaults::normalize_obj};

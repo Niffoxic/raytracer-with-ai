@@ -588,6 +588,22 @@ namespace GamesEngineeringBase
 			pumpLoop();
 		}
 
+		unsigned int getClientWidth() const
+		{
+			return client_width_ != 0 ? client_width_ : width;
+		}
+
+		unsigned int getClientHeight() const
+		{
+			return client_height_ != 0 ? client_height_ : height;
+		}
+
+		bool imguiWantsTextInput() const
+		{
+			if (ImGui::GetCurrentContext() == nullptr) return false;
+			return ImGui::GetIO().WantTextInput;
+		}
+
 		// Returns a pointer to the back buffer image data
 		unsigned char* backBuffer() const
 		{
