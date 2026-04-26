@@ -263,3 +263,495 @@ bool fox_tracer::geometry::sphere::ray_intersect(const ray &r, float &t) const n
 
     return false;
 }
+
+fox_tracer::accelerated_structure::bvh_node::~bvh_node()
+{
+    delete l;
+    delete r;
+}
+
+void fox_tracer::accelerated_structure::bvh_node::build(
+    std::vector<triangle> &input_triangles,
+    std::vector<triangle> &output_triangles)
+{
+    output_triangles.reserve(output_triangles.size() + input_triangles.size());
+
+    bounds.reset();
+
+    // for (const auto& t: input_triangles) bounds.extend(t.centre());
+
+    // aabb tri_b;
+    // for (const auto& t: input_triangles)
+    // {
+    //     tri_b.reset();
+    //     tri_b.extend(t.vertices[0].position);
+    //     tri_b.extend(t.vertices[1].position);
+    //     tri_b.extend(t.vertices[2].position);
+    //     bounds.extend(tri_b.min);
+    //     bounds.extend(tri_b.max);
+    // }
+
+    for (const auto & input_triangle : input_triangles)
+    {
+        bounds.extend(input_triangle.vertices[0].position);
+        bounds.extend(input_triangle.vertices[1].position);
+        bounds.extend(input_triangle.vertices[2].position);
+    }
+
+    build_recursive(input_triangles, output_triangles);
+}
+
+void fox_tracer::accelerated_structure::bvh_node::traverse(
+    const ray &r_, const std::vector<triangle> &scene_triangles,
+    intersection_data &intersection) const
+{
+    // TODO: iterative traversal with explicit stack for no recursion overhead
+    // TODO: ray packets / SIMD stest (4 or 8 rays at once)
+
+    float t_bounds;
+    if (!bounds.ray_aabb(r_, t_bounds)) return;
+    if (t_bounds >= intersection.t) return;
+
+    if (num > 0)
+    {
+        for (unsigned int i = 0; i < num; ++i)
+        {
+            float u, v;
+
+            // for (unsigned int i = 0; i < num; ++i)
+            // {
+            //     float u, v, t;
+            //     if (scene_triangles[offset + i].ray_intersect(r_, t, u, v))
+            //     {
+            //         if (t < intersection.t)
+            //         {
+            //             intersection.t     = t;
+            //             intersection.ID    = offset + i;
+            //             intersection.alpha = u;
+            //             intersection.beta  = v;
+            //             intersection.gamma = 1.0f - (u + v);
+            //         }
+            //     }
+            // }
+
+            if (float t; triangles[i].ray_intersect(r_, t, u, v))
+            {
+                if (t < intersection.t)
+                {
+                    intersection.t     = t;
+                    intersection.ID    = offset + i;
+                    intersection.alpha = u;
+                    intersection.beta  = v;
+                    intersection.gamma = 1.0f - (u + v);
+                }
+            }
+        }
+
+        return;
+    }
+
+    //~ visit nearer child first prune farther on t_far >= current best t
+    if (l && r)
+    {
+        float t_l = FLT_MAX;
+        float t_r = FLT_MAX;
+        const bool hit_l = l->bounds.ray_aabb(r_, t_l);
+        const bool hit_r = r->bounds.ray_aabb(r_, t_r);
+
+        // if (l) l->traverse(r_, scene_triangles, intersection);
+        // if (r) r->traverse(r_, scene_triangles, intersection);
+
+        // if (hit_l) l->traverse(r_, scene_triangles, intersection);
+        // if (hit_r && t_r < intersection.t) r->traverse(r_, scene_triangles, intersection);
+
+        if (hit_l && hit_r)
+        {
+            if (t_l <= t_r)
+            {
+                l->traverse(r_, scene_triangles, intersection);
+                if (t_r < intersection.t) r->traverse(r_, scene_triangles, intersection);
+            }
+            else
+            {
+                r->traverse(r_, scene_triangles, intersection);
+                if (t_l < intersection.t) l->traverse(r_, scene_triangles, intersection);
+            }
+        }
+        else if (hit_l)
+        {
+            l->traverse(r_, scene_triangles, intersection);
+        }
+        else if (hit_r)
+        {
+            r->traverse(r_, scene_triangles, intersection);
+        }
+    }
+    else if (l)
+    {
+        l->traverse(r_, scene_triangles, intersection);
+    }
+    else if (r)
+    {
+        r->traverse(r_, scene_triangles, intersection);
+    }
+}
+
+fox_tracer::accelerated_structure::intersection_data
+fox_tracer::accelerated_structure::bvh_node::traverse(
+    const ray &r_,
+    const std::vector<triangle> &scene_triangles) const
+{
+    intersection_data intersection;
+    intersection.t = FLT_MAX;
+    traverse(r_, scene_triangles, intersection);
+    return intersection;
+}
+
+bool fox_tracer::accelerated_structure::bvh_node::traverse_visible(
+    const ray &r_, const std::vector<triangle> &scene_triangles,
+    const float max_t) const
+{
+    float t_bounds;
+    if (!bounds.ray_aabb(r_, t_bounds)) return true;
+    if (t_bounds >= max_t) return true;
+
+    if (num > 0)
+    {
+        for (unsigned int i = 0; i < num; ++i)
+        {
+            float u, v;
+            if (float t; triangles[i].ray_intersect(r_, t, u, v))
+            {
+                if (t < max_t) return false;
+            }
+        }
+        return true;
+    }
+
+    // intersection_data hit;
+    // hit.t = FLT_MAX;
+    // traverse(r_, scene_triangles, hit);
+    // return hit.t >= max_t;
+
+    // float t_l = FLT_MAX, t_r = FLT_MAX;
+    // const bool hit_l = l && l->bounds.ray_aabb(r_, t_l);
+    // const bool hit_r = r && r->bounds.ray_aabb(r_, t_r);
+    // if (hit_l && t_l <= t_r)
+    // {
+    //     if (!l->traverse_visible(r_, scene_triangles, max_t)) return false;
+    //     if (hit_r) return r->traverse_visible(r_, scene_triangles, max_t);
+    // }
+    // else if (hit_r)
+    // {
+    //     if (!r->traverse_visible(r_, scene_triangles, max_t)) return false;
+    //     if (hit_l) return l->traverse_visible(r_, scene_triangles, max_t);
+    // }
+    // return true;
+
+
+    if (l && !l->traverse_visible(r_, scene_triangles, max_t)) return false;
+    if (r && !r->traverse_visible(r_, scene_triangles, max_t)) return false;
+    // TODO: alpha mask aware shadows call bsdf->mask at hit
+    return true;
+}
+
+float fox_tracer::accelerated_structure::bvh_node::axis_of(
+    const vec3 &v, const int axis) noexcept
+{
+    return (axis == 0) ? v.x : ((axis == 1) ? v.y : v.z);
+}
+
+void fox_tracer::accelerated_structure::bvh_node::build_recursive(
+    std::vector<triangle> &node_tris,
+    std::vector<triangle> &output_triangles)
+{
+    const auto N = static_cast<unsigned int>(node_tris.size());
+
+    if (N <= config::max_node_triangles)
+    {
+        make_leaf(node_tris, output_triangles);
+        return;
+    }
+
+    const float parent_area = bounds.area();
+    const float leaf_cost   = static_cast<float>(N) * config::triangle_cost;
+
+    int   best_axis    = -1;
+    int   best_bin     = -1;
+    float best_cost    = FLT_MAX;
+    float best_min_c   = 0.0f;
+    float best_range_c = 0.0f;
+
+    //~ TODO: add this on imgui controls its still fast tho
+    // const int axis = bounds.longest_axis();
+    // std::ranges::sort(node_tris,
+    //     [axis](const triangle& a, const triangle& b)
+    //     {
+    //         return axis_of(a.centre(), axis) < axis_of(b.centre(), axis);
+    //     });
+    // const size_t mid = node_tris.size() / 2;
+
+    for (int axis = 0; axis < 3; ++axis)
+    {
+        //~ centroid range on this axis
+        float min_c =  FLT_MAX;
+        float max_c = -FLT_MAX;
+
+        // auto [it_min, it_max] = std::minmax_element(node_tris.begin(), node_tris.end(),
+        //     [axis](const triangle& a, const triangle& b)
+        //     {
+        //         return axis_of(a.centre(), axis) < axis_of(b.centre(), axis);
+        //     });
+        // min_c = axis_of(it_min->centre(), axis);
+        // max_c = axis_of(it_max->centre(), axis);
+
+        for (unsigned int i = 0; i < N; ++i)
+        {
+            const float c = axis_of(node_tris[i].centre(), axis);
+            if (c < min_c) min_c = c;
+            if (c > max_c) max_c = c;
+        }
+
+        const float range_c = max_c - min_c;
+        if (range_c < math::epsilon<float>)
+        {
+            //~ no split possible because all centroids coincident on this axis
+            continue;
+        }
+
+        aabb bin_bounds[config::build_bins];
+        int  bin_count[config::build_bins];
+        for (int & i : bin_count) i = 0;
+
+        // std::array + std::fill version, identical codegen, dropped for terseness:
+        // std::array<aabb, config::build_bins> bin_bounds{};
+        // std::array<int, config::build_bins> bin_count{};
+        // bin_count.fill(0);
+
+        //~ bucket index
+        const float inv_range = static_cast<float>(config::build_bins) / range_c;
+
+        for (unsigned int i = 0; i < N; ++i)
+        {
+            const float c = axis_of(node_tris[i].centre(), axis);
+            int b = static_cast<int>((c - min_c) * inv_range);
+
+            b = std::clamp(b, 0, config::build_bins - 1);
+
+            // aabb tb;
+            // tb.extend(node_tris[i].vertices[0].position);
+            // tb.extend(node_tris[i].vertices[1].position);
+            // tb.extend(node_tris[i].vertices[2].position);
+            // bin_bounds[b].extend(tb.min);
+            // bin_bounds[b].extend(tb.max);
+
+            bin_count[b]++;
+            bin_bounds[b].extend(node_tris[i].vertices[0].position);
+            bin_bounds[b].extend(node_tris[i].vertices[1].position);
+            bin_bounds[b].extend(node_tris[i].vertices[2].position);
+        }
+
+        //~ left prefix sweep
+        aabb left_accum[config::build_bins];
+        int  left_count[config::build_bins];
+        {
+            aabb accum;
+            int  cnt = 0;
+            for (int i = 0; i < config::build_bins; ++i)
+            {
+                cnt += bin_count[i];
+                if (bin_count[i] > 0)
+                {
+                    accum.extend(bin_bounds[i].min);
+                    accum.extend(bin_bounds[i].max);
+                }
+                left_accum[i] = accum;
+                left_count[i] = cnt;
+            }
+        }
+
+        // go for the right suffix sweep
+        aabb right_accum[config::build_bins];
+        int  right_count[config::build_bins];
+        {
+            aabb accum;
+            int  cnt = 0;
+            for (int i = config::build_bins - 1; i >= 0; --i)
+            {
+                cnt += bin_count[i];
+                if (bin_count[i] > 0)
+                {
+                    accum.extend(bin_bounds[i].min);
+                    accum.extend(bin_bounds[i].max);
+                }
+                right_accum[i] = accum;
+                right_count[i] = cnt;
+            }
+        }
+
+        //~ cost = C_t + (A_L * N_L * C_i + A_R * N_R * C_i) / A_parent
+        for (int i = 0; i < config::build_bins - 1; ++i)
+        {
+            const int n_l = left_count[i];
+            const int n_r = right_count[i + 1];
+
+            if (n_l == 0 || n_r == 0) continue;
+
+            const float a_l = left_accum[i].area();
+            const float a_r = right_accum[i + 1].area();
+
+            // const float cost = config::traverse_cost
+            //     + a_l * static_cast<float>(n_l) * config::triangle_cost
+            //     + a_r * static_cast<float>(n_r) * config::triangle_cost;
+
+            const float cost = config::traverse_cost
+                + (a_l * static_cast<float>(n_l) * config::triangle_cost) / parent_area
+                + (a_r * static_cast<float>(n_r) * config::triangle_cost) / parent_area;
+
+            if (cost < best_cost)
+            {
+                best_cost    = cost;
+                best_axis    = axis;
+                best_bin     = i;
+                best_min_c   = min_c;
+                best_range_c = range_c;
+            }
+        }
+    }
+
+    //~ avoiding pathological deep leaves!!
+    if (best_axis < 0 || best_cost >= leaf_cost)
+    {
+        if (N > static_cast<unsigned int>(config::max_node_triangles * 8))
+        {
+            force_median_split(node_tris, output_triangles);
+            return;
+        }
+        make_leaf(node_tris, output_triangles);
+        return;
+    }
+
+    const float split_pos = best_min_c
+                          + (static_cast<float>(best_bin + 1)
+                             * best_range_c / static_cast<float>(config::build_bins));
+
+    std::vector<triangle> left_tris;
+    std::vector<triangle> right_tris;
+    left_tris.reserve(N / 2);
+    right_tris.reserve(N / 2);
+
+    aabb left_bounds;
+    aabb right_bounds;
+
+    // auto mid = std::partition(node_tris.begin(), node_tris.end(),
+    //     [&](const triangle& t)
+    //     {
+    //          return axis_of(t.centre(), best_axis) < split_pos;
+    //     });
+
+    for (unsigned int i = 0; i < N; ++i)
+    {
+        if (const float c = axis_of(node_tris[i].centre(), best_axis); c < split_pos)
+        {
+            left_tris.push_back(node_tris[i]);
+            left_bounds.extend(node_tris[i].vertices[0].position);
+            left_bounds.extend(node_tris[i].vertices[1].position);
+            left_bounds.extend(node_tris[i].vertices[2].position);
+        }
+        else
+        {
+            right_tris.push_back(node_tris[i]);
+            right_bounds.extend(node_tris[i].vertices[0].position);
+            right_bounds.extend(node_tris[i].vertices[1].position);
+            right_bounds.extend(node_tris[i].vertices[2].position);
+        }
+    }
+    //~ all triangles on one side
+    if (left_tris.empty() || right_tris.empty())
+    {
+        make_leaf(node_tris, output_triangles);
+        return;
+    }
+
+    node_tris.clear();
+    node_tris.shrink_to_fit();
+
+    l = new bvh_node();
+    l->bounds = left_bounds;
+    l->build_recursive(left_tris, output_triangles);
+
+    r = new bvh_node();
+    r->bounds = right_bounds;
+    r->build_recursive(right_tris, output_triangles);
+
+    // TODO: parallel build using tbb or std::execution - subtree builds are independent
+    // TODO: can try spatial split for high overlap scenes (future stuff I dont find complex scene anyways)
+}
+
+void fox_tracer::accelerated_structure::bvh_node::force_median_split(
+    std::vector<triangle> &node_tris,
+    std::vector<triangle> &output_triangles)
+{
+    const vec3 size = bounds.max - bounds.min;
+    int axis = 0;
+    if (size.y > size.x) axis = 1;
+    if (size.z > ((axis == 1) ? size.y : size.x)) axis = 2;
+
+    // std::nth_element(node_tris.begin(), node_tris.begin() + node_tris.size()/2,
+    //                  node_tris.end(), cmp);
+
+    std::ranges::sort(node_tris,
+      [axis](const triangle& a, const triangle& b)
+      {
+          return axis_of(a.centre(), axis) < axis_of(b.centre(), axis);
+      });
+
+    const size_t mid = node_tris.size() / 2;
+    std::vector left_tris (node_tris.begin(), node_tris.begin() + static_cast<long long>(mid));
+    std::vector right_tris(node_tris.begin() +
+        static_cast<long long>(mid), node_tris.end());
+
+    aabb left_bounds;
+    for (const auto & left_tri : left_tris)
+    {
+        left_bounds.extend(left_tri.vertices[0].position);
+        left_bounds.extend(left_tri.vertices[1].position);
+        left_bounds.extend(left_tri.vertices[2].position);
+    }
+
+    aabb right_bounds;
+    for (const auto & right_tri : right_tris)
+    {
+        right_bounds.extend(right_tri.vertices[0].position);
+        right_bounds.extend(right_tri.vertices[1].position);
+        right_bounds.extend(right_tri.vertices[2].position);
+    }
+
+    node_tris.clear();
+    node_tris.shrink_to_fit();
+
+    l = new bvh_node();
+    l->bounds = left_bounds;
+    l->build_recursive(left_tris, output_triangles);
+
+    r = new bvh_node();
+    r->bounds = right_bounds;
+    r->build_recursive(right_tris, output_triangles);
+}
+
+void fox_tracer::accelerated_structure::bvh_node::make_leaf(
+    const std::vector<triangle> &node_tris,
+    std::vector<triangle> &output_triangles)
+{
+    offset = static_cast<unsigned int>(output_triangles.size());
+    num    = static_cast<unsigned int>(node_tris.size());
+
+    for (unsigned int i = 0; i < num; ++i)
+    {
+        output_triangles.push_back(node_tris[i]);
+    }
+    triangles = &output_triangles[offset];
+
+    // TODO: drop the triangles* cache index using output_triangles[offset+i]
+    // at traversal time removes the realloc invalidation
+}

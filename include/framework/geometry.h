@@ -117,6 +117,76 @@ namespace fox_tracer
             bool ray_intersect(const ray& r, float& t) const noexcept;
         };
     } // namespace geometry
+
+    namespace accelerated_structure
+    {
+        struct intersection_data
+        {
+            unsigned int ID     {};
+            float        t      {};
+            float        alpha  {};
+            float        beta   {};
+            float        gamma  {};
+        };
+
+        namespace config
+        {
+            inline constexpr int   max_node_triangles = 8;
+            inline constexpr float traverse_cost      = 1.0f;
+            inline constexpr float triangle_cost      = 2.0f;
+            inline constexpr int   build_bins         = 32;
+        }
+
+        class bvh_node
+        {
+            using triangle  = geometry::triangle;
+            using ray       = geometry::ray;
+            using aabb      = geometry::aabb;
+        public:
+            aabb         bounds;
+            bvh_node*    r{ nullptr };
+            bvh_node*    l{ nullptr };
+
+            triangle*    triangles{ nullptr };
+            unsigned int offset   { 0 };
+            unsigned int num      { 0 };
+
+             bvh_node() noexcept = default;
+            ~bvh_node();
+
+            bvh_node(const bvh_node&)            = delete;
+            bvh_node(bvh_node&&)                 = delete;
+
+            bvh_node& operator=(const bvh_node&) = delete;
+            bvh_node& operator=(bvh_node&&)      = delete;
+
+            void build(std::vector<triangle>& input_triangles,
+                       std::vector<triangle>& output_triangles);
+
+            void traverse(const ray& r_,
+                          const std::vector<triangle>& scene_triangles,
+                          intersection_data& intersection) const;
+
+            [[nodiscard]] intersection_data traverse(const ray& r_,
+                                       const std::vector<triangle>& scene_triangles) const;
+
+            [[nodiscard]] bool traverse_visible(const ray& r_,
+                                  const std::vector<triangle>& scene_triangles,
+                                  float max_t) const;
+
+        private:
+            static float axis_of(const vec3& v, int axis) noexcept;
+
+            void build_recursive(std::vector<triangle>& node_tris,
+                                 std::vector<triangle>& output_triangles);
+
+            void force_median_split(std::vector<triangle>& node_tris,
+                                    std::vector<triangle>& output_triangles);
+
+            void make_leaf(const std::vector<triangle>& node_tris,
+                           std::vector<triangle>& output_triangles);
+        };
+    } // namespace accelerated_structure
 } // namespace fox_tracer
 
 #endif //RAYTRACER_WITH_AI_GEOMETRY_H
