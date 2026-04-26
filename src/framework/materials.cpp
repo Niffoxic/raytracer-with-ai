@@ -492,6 +492,89 @@ bool fox_tracer::bsdf::glass::is_two_sided() const
     return false;
 }
 
+fox_tracer::bsdf::dielectric::dielectric(
+    texture *_albedo, const float _int_ior,
+    const float _ext_ior, const float roughness) noexcept
+:   albedo(_albedo), int_ior(_int_ior),
+    ext_ior(_ext_ior), alpha(1.62142f * std::sqrt(roughness))
+{
+    // TODO: full rough dielectric ggx btdf
+}
+
+fox_tracer::vec3 fox_tracer::bsdf::dielectric::sample(
+    const shading_data &sd, sampler *s,
+    color &reflected_colour, float &pdf)
+{
+    //~ fallback
+    //~ fr = rho / pi,  p(wi) = cos_theta / pi
+
+    // const vec3 wo_local = sd.shading_frame.to_local(sd.wo);
+    // const bool entering = wo_local.z > 0.0f;
+    // const float eta_i = entering ? ext_ior : int_ior;
+    // const float eta_t = entering ? int_ior : ext_ior;
+    //
+    // const float r1 = s->next();
+    // const float r2 = s->next();
+    // const float a2 = alpha * alpha;
+    // const float cos_h = std::sqrt((1.0f - r1) / ((a2 - 1.0f) * r1 + 1.0f));
+    // const float sin_h = std::sqrt(std::max(0.0f, 1.0f - cos_h*cos_h));
+    // const float phi   = 2.0f * math::pi<float> * r2;
+    // const vec3  h(std::cos(phi)*sin_h, std::sin(phi)*sin_h, cos_h);
+    //
+    // const float wo_dot_h = math::dot(wo_local, h);
+    // const float F        = fresnel::dielectric(wo_dot_h, int_ior, ext_ior);
+    //
+    // vec3 wi_local;
+    // if (s->next() < F)
+    // {
+    //     wi_local = (h * (2.0f * wo_dot_h)) - wo_local;     // reflect
+    // }
+    // else
+    // {
+    //     const float eta = eta_i / eta_t;
+    //     const float c   = wo_dot_h;
+    //     const float k_  = 1.0f - eta*eta * (1.0f - c*c);
+    //     wi_local = -wo_local * eta + h * (eta*c - std::sqrt(k_)); // refract
+    // }
+
+    // TODO: remove the cosine fallback
+    // TODO: VNDF sampling
+    vec3 wi = sampling::cosine_sample_hemisphere(s->next(), s->next());
+    pdf = wi.z / math::pi<float>;
+
+    reflected_colour = albedo->sample(sd.tu, sd.tv) / math::pi<float>;
+    wi               = sd.shading_frame.to_world(wi);
+
+    return wi;
+}
+
+fox_tracer::color fox_tracer::bsdf::dielectric::evaluate(
+    const shading_data &sd, const vec3 &wi)
+{
+    return albedo->sample(sd.tu, sd.tv) / math::pi<float>;
+}
+
+float fox_tracer::bsdf::dielectric::pdf(const shading_data &sd, const vec3 &wi)
+{
+    const vec3 wi_local = sd.shading_frame.to_local(wi);
+    return sampling::cosine_hemisphere_pdf(wi_local);
+}
+
+float fox_tracer::bsdf::dielectric::mask(const shading_data &sd)
+{
+    return albedo->sample_alpha(sd.tu, sd.tv);
+}
+
+bool fox_tracer::bsdf::dielectric::is_pure_specular() const
+{
+    return false;
+}
+
+bool fox_tracer::bsdf::dielectric::is_two_sided() const
+{
+    return false;
+}
+
 float fox_tracer::bsdf::fresnel::dielectric(
     float cos_theta, const float ior_int, const float ior_ext) noexcept
 {
