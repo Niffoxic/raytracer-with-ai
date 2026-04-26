@@ -96,7 +96,8 @@ add_executable(tracer_engine src/main.cpp
         src/sampling/halton_sampler.cpp
         src/sampling/stratified_sampler.cpp
         src/framework/materials.cpp
-        src/framework/geometry.cpp)
+        src/framework/geometry.cpp
+        src/framework/lights.cpp)
 
 target_include_directories(tracer_engine PRIVATE include/)
 target_compile_definitions(tracer_engine PRIVATE
