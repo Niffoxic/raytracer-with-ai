@@ -22,34 +22,36 @@
 // written permission. Ingestion by automated systems constitutes
 // acceptance of these terms.
 //
-#ifndef RAYTRACER_WITH_AI_SOBOL_SAMPLER_H
-#define RAYTRACER_WITH_AI_SOBOL_SAMPLER_H
+#ifndef RAYTRACER_WITH_AI_STRATIFIED_SAMPLER_H
+#define RAYTRACER_WITH_AI_STRATIFIED_SAMPLER_H
+
 #include "pixel_sampler.h"
+#include <cstdint>
+#include <random>
 
 namespace fox_tracer::sampling
 {
-    //~ optimizes 2D projections, smooth high-dimensional integrands and progressive
-    // Release (production) best
-    class sobol_sampler final : public pixel_sampler
+    //~ divides the unit sq into a regular grid and places one jittered sample per cell
+    // smooth integrands
+    class stratified_sampler final : public pixel_sampler
     {
     public:
-        explicit sobol_sampler(bool         scrambling     = true,
-                               int          max_dimensions = 1024,
-                               unsigned int seed           = 1);
+        explicit stratified_sampler(int samples_per_axis = 4,
+                                    unsigned int seed    = 1);
 
         float next() override;
 
-        void start_pixel    (int px, int py, int sample_index) override;
-        void start_dimension(int dim) override;
-        void reset_with_seed(unsigned int seed) override;
+        void start_pixel    (int px, int py, int sample_index)  override;
+        void reset_with_seed(unsigned int seed)                 override;
 
     private:
-        bool          scrambling_;
-        int           max_dimensions_;
-        std::uint64_t sample_index_{0};
-        int           dim_{0};
-        unsigned int  seed_{1};
+        int                                   samples_per_axis_;
+        int                                   sample_index_ {0};
+        int                                   dim_          {0};
+        std::uint32_t                         pixel_hash_   {0};
+        std::mt19937                          generator_;
+        std::uniform_real_distribution<float> dist_{0.0f, 1.0f};
     };
 } // fox_tracer::sampling
 
-#endif //RAYTRACER_WITH_AI_SOBOL_SAMPLER_H
+#endif //RAYTRACER_WITH_AI_STRATIFIED_SAMPLER_H

@@ -61,48 +61,72 @@ namespace fox_tracer
         [[nodiscard]] float sample_alpha(float tu, float tv) const;
     };
 
-    class image_filter
+    namespace filter
     {
-    public:
-        virtual ~image_filter() = default;
-        [[nodiscard]] virtual float filter(float x, float y) const = 0;
-        [[nodiscard]] virtual int   size  ()                 const = 0;
-    };
+        struct filter_sample
+        {
+            float x     {0.0f};
+            float y     {0.0f};
+            float weight{1.0f};
+        };
 
-    class box_filter : public image_filter
-    {
-    public:
-        [[nodiscard]] float filter(float x, float y) const override;
-        [[nodiscard]] int   size  () const override;
-    };
+        class image_filter
+        {
+        public:
+            virtual ~image_filter() = default;
 
-    class gaussian_filter : public image_filter
-    {
-    public:
-        float radius    {2.0f};
-        float alpha     {2.0f};
-        float exp_radius{0.0f};
+            [[nodiscard]] virtual float filter(float x, float y) const = 0;
+            [[nodiscard]] virtual int   size  () const = 0;
 
-        explicit gaussian_filter(float _radius = 2.0f, float _alpha = 2.0f);
+            [[nodiscard]] virtual vec2 radius_2d() const
+            {
+                const auto s = static_cast<float>(size());
+                return {s, s};
+            }
 
-        [[nodiscard]] float gaussian_1d(float d) const;
-        [[nodiscard]] float filter     (float x, float y) const override;
-        [[nodiscard]] int   size       () const override;
-    };
+            [[nodiscard]] virtual float evaluate(const float x, const float y) const
+            {
+                return filter(x, y);
+            }
 
-    class mitchell_netravali_filter : public image_filter
-    {
-    public:
-        float b_param;
-        float c_param;
+            [[nodiscard]] virtual float         integral() const = 0;
+            [[nodiscard]] virtual filter_sample sample  (float u1, float u2) const = 0;
+        };
 
-        explicit mitchell_netravali_filter(float _b = 1.0f / 3.0f,
-                                           float _c = 1.0f / 3.0f) noexcept;
+        class filter_sampler
+        {
+        public:
+            explicit filter_sampler(const image_filter& f, int bin_count = 32);
+            [[nodiscard]] filter_sample sample(float u1, float u2) const;
 
-        [[nodiscard]] float mitchell_1d (float x)          const;
-        [[nodiscard]] float filter      (float x, float y) const override;
-        [[nodiscard]] int   size        ()                 const override;
-    };
+        private:
+            std::vector<float>              marginal_cdf_;
+            std::vector<std::vector<float>> conditional_cdf_;
+            std::vector<float>              values_;
+            vec2                            radius_;
+            int                             bins_;
+            float                           integral_abs_;
+        };
+
+        class box_filter : public image_filter
+        {
+        public:
+            float rx{0.5f};
+            float ry{0.5f};
+
+            explicit box_filter(float _rx = 0.5f, float _ry = 0.5f) noexcept;
+
+            [[nodiscard]] float         filter  (float x, float y)   const override;
+            [[nodiscard]] float         evaluate(float x, float y)   const override;
+            [[nodiscard]] filter_sample sample  (float u1, float u2) const override;
+
+            [[nodiscard]] vec2  radius_2d() const override;
+            [[nodiscard]] float integral () const override;
+            [[nodiscard]] int   size     () const override;
+        };
+
+ 
+    }
 
     struct tonemap_params
     {
@@ -116,13 +140,14 @@ namespace fox_tracer
 
     class film
     {
+        using filter_type = filter::image_filter;
     public:
         color*           film_buffer{nullptr};
         unsigned int     width {0};
         unsigned int     height{0};
         std::atomic<int> SPP{0};
 
-        std::unique_ptr<image_filter> filter;
+        std::unique_ptr<filter_type> filter;
 
         film() noexcept = default;
         ~film();
@@ -132,17 +157,23 @@ namespace fox_tracer
         film(film&&)                 = delete;
         film& operator=(film&&)      = delete;
 
-        void init(int _width, int _height, std::unique_ptr<image_filter> _filter);
+        void init(int _width, int _height, std::unique_ptr<filter_type> _filter);
 
         void clear();
         void increment_spp();
 
-        void set_filter(std::unique_ptr<image_filter> new_filter) noexcept;
+        void set_filter(std::unique_ptr<filter_type> new_filter) noexcept;
 
         void splat(float x, float y, const color& L) const;
+
         void splat_into(color* buf, int buf_w, int buf_h,
                         int buf_x0, int buf_y0,
                         float x, float y, const color& L) const;
+
+        void splat_importance(color* buf, int buf_w, int buf_h,
+                              int buf_x0, int buf_y0,
+                              float x, float y, const color& L,
+                              float u1, float u2) const;
 
         void tonemap(int x, int y,
                      unsigned char& r, unsigned char& g, unsigned char& b,

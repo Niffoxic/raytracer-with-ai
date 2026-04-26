@@ -29,7 +29,9 @@
 
 namespace fox_tracer::sampling
 {
-    //~ same as mt tho added for completeness
+    //~ same as mt tho added for completeness: uniform random
+    // unbiased, fast(since parallel is easy because of no shared state)
+    // (fox tracer debug default)
     class independent_sampler final: public pixel_sampler
     {
     public:

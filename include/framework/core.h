@@ -25,6 +25,8 @@
 #ifndef RAYTRACER_WITH_AI_CORE_H
 #define RAYTRACER_WITH_AI_CORE_H
 
+#include <algorithm>
+#include <cmath>
 #include <type_traits>
 
 namespace fox_tracer
@@ -56,6 +58,40 @@ namespace fox_tracer
         [[nodiscard]] constexpr float saturate(const float v) noexcept
         {
             return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
+        }
+
+        template<typename T>
+        requires std::is_floating_point_v<T>
+        inline T erf_inv_approx(T y)
+        {
+            constexpr T a             = T(0.147);
+            constexpr T two_over_pi_a = T(2) / (pi<T> * a);
+
+            const T ln_term = std::log(std::max(T(1) - y * y, T(1.0e-20)));
+
+            const T t1 = two_over_pi_a + T(0.5) * ln_term;
+            const T t2 = ln_term / a;
+
+            const T r  = std::sqrt(std::sqrt(t1 * t1 - t2) - t1);
+            return std::copysign(r, y);
+        }
+
+        template<typename T>
+        requires std::is_floating_point_v<T>
+        inline T windowed_sinc(T x, T radius, T tau)
+        {
+            x = std::fabs(x);
+
+            if (x > radius) return T(0);
+            if (x < T(1.0e-5)) return T(1);
+
+            const T pi_x    = pi<T> * x;
+            const T pi_xt   = pi_x / tau;
+
+            const T sinc    = std::sin(pi_x) / pi_x;
+            const T lanczos = std::sin(pi_xt) / pi_xt;
+
+            return sinc * lanczos;
         }
     }
 
@@ -92,6 +128,15 @@ namespace fox_tracer
         color operator/(float v)          const noexcept;
 
         [[nodiscard]] float luminance() const noexcept;
+    };
+
+    struct vec2
+    {
+        float x{0.0f};
+        float y{0.0f};
+
+        vec2() = default;
+        vec2(const float _x, const float _y) noexcept : x(_x), y(_y) {}
     };
 
     class alignas(16) vec3

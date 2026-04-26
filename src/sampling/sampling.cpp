@@ -27,6 +27,7 @@
 #include "sampler/halton_sampler.h"
 #include "sampler/independent_sampler.h"
 #include "sampler/sobol_sampler.h"
+#include "sampler/stratified_sampler.h"
 
 fox_tracer::mt_random::mt_random(const unsigned int seed)
 : dist(0.0f, 1.0f)
@@ -49,6 +50,8 @@ std::unique_ptr<fox_tracer::sampler> fox_tracer::sampling::make_sampler(const sa
         return std::make_unique<halton_sampler>(cfg.seed);
     case sampler_kind::sobol:
         return std::make_unique<sobol_sampler>(cfg.seed);
+    case sampler_kind::stratified:
+        return std::make_unique<stratified_sampler>(cfg.samples_per_axis, cfg.seed);
     case sampler_kind::mt_random:
     default:
         return std::make_unique<mt_random>(cfg.seed);

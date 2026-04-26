@@ -30,6 +30,7 @@
 
 namespace fox_tracer::sampling
 {
+    //~ progressive, low-discrepancy
     class halton_sampler final : public pixel_sampler
     {
     public:

@@ -230,77 +230,132 @@ float fox_tracer::texture::sample_alpha(const float tu, const float tv) const
     return (s[0] * w0) + (s[1] * w1) + (s[2] * w2) + (s[3] * w3);
 }
 
-float fox_tracer::box_filter::filter(const float x, const float y) const
+fox_tracer::filter::filter_sampler::filter_sampler(const image_filter &f, const int bin_count)
+    : radius_(f.radius_2d()), bins_(bin_count), integral_abs_(0.f)
 {
-    if (std::fabs(x) < 0.5f && std::fabs(y) < 0.5f)
+    if (bins_ < 1) bins_ = 1;
+
+    values_.assign(static_cast<size_t>(bins_) * bins_, 0.0f);
+    conditional_cdf_.assign(bins_, std::vector<float>(bins_ + 1, 0.0f));
+    marginal_cdf_.assign(bins_ + 1, 0.0f);
+
+    for (int j = 0; j < bins_; ++j)
+    {
+        const float v = (static_cast<float>(j) + 0.5f) / static_cast<float>(bins_);
+        const float y = (2.0f * v - 1.0f) * radius_.y;
+
+        float row_sum = 0.0f;
+        conditional_cdf_[j][0] = 0.0f;
+        for (int i = 0; i < bins_; ++i)
+        {
+            const float u = (static_cast<float>(i) + 0.5f) / static_cast<float>(bins_);
+            const float x = (2.0f * u - 1.0f) * radius_.x;
+            const float val = std::fabs(f.evaluate(x, y));
+            values_[static_cast<size_t>(j) * bins_ + i] = val;
+            row_sum += val;
+            conditional_cdf_[j][i + 1] = row_sum;
+        }
+        if (row_sum > 0.0f)
+        {
+            const float inv = 1.0f / row_sum;
+            for (int i = 1; i <= bins_; ++i) conditional_cdf_[j][i] *= inv;
+        }
+        marginal_cdf_[j + 1] = marginal_cdf_[j] + row_sum;
+    }
+    integral_abs_ = marginal_cdf_[bins_];
+    if (integral_abs_ > 0.0f)
+    {
+        const float inv = 1.0f / integral_abs_;
+        for (int j = 1; j <= bins_; ++j) marginal_cdf_[j] *= inv;
+    }
+}
+
+fox_tracer::filter::filter_sample fox_tracer::filter::filter_sampler::sample(
+    const float u1, const float u2) const
+{
+    if (integral_abs_ <= 0.0f)
+    {
+        // Degenerate filter
+        return { (2.0f * u1 - 1.0f) * radius_.x,
+                 (2.0f * u2 - 1.0f) * radius_.y,
+                 0.0f };
+    }
+
+    // Binary search - CDF for the y bin
+    auto search_cdf = [](const std::vector<float>& cdf, const float u, const int n)
+    {
+        int lo = 0, hi = n;
+        while (lo < hi)
+        {
+            const int mid = (lo + hi) >> 1;
+            if (cdf[mid + 1] <= u)
+                lo = mid + 1;
+            else hi = mid;
+        }
+        return std::min(lo, n - 1);
+    };
+
+    const int j = search_cdf(marginal_cdf_, u2, bins_);
+    const float y0  = marginal_cdf_[j];
+    const float y1  = marginal_cdf_[j + 1];
+    const float dy  = (y1 > y0) ? (u2 - y0) / (y1 - y0) : 0.5f;
+    const float yv  = (static_cast<float>(j) + dy) / static_cast<float>(bins_);
+    const float y   = (2.0f * yv - 1.0f) * radius_.y;
+
+    const int i = search_cdf(conditional_cdf_[j], u1, bins_);
+    const float x0  = conditional_cdf_[j][i];
+    const float x1  = conditional_cdf_[j][i + 1];
+    const float dx  = (x1 > x0) ? (u1 - x0) / (x1 - x0) : 0.5f;
+    const float xv  = (static_cast<float>(i) + dx) / static_cast<float>(bins_);
+    const float x   = (2.0f * xv - 1.0f) * radius_.x;
+
+    return { x, y, 1.0f };
+}
+
+fox_tracer::filter::box_filter::box_filter(const float _rx, const float _ry) noexcept
+    : rx(_rx), ry(_ry)
+{}
+
+float fox_tracer::filter::box_filter::filter(const float x, const float y) const
+{
+    return evaluate(x, y);
+}
+
+float fox_tracer::filter::box_filter::evaluate(const float x, const float y) const
+{
+    if (std::fabs(x) < rx && std::fabs(y) < ry)
     {
         return 1.0f;
     }
     return 0.0f;
 }
 
-int fox_tracer::box_filter::size() const
+fox_tracer::filter::filter_sample fox_tracer::filter::box_filter::sample(
+    const float u1, const float u2) const
 {
-    return 0;
+    return { (2.0f * u1 - 1.0f) * rx,
+             (2.0f * u2 - 1.0f) * ry,
+             1.0f };
 }
 
-fox_tracer::gaussian_filter::gaussian_filter(const float _radius, const float _alpha)
-    : radius(_radius), alpha(_alpha)
+fox_tracer::vec2 fox_tracer::filter::box_filter::radius_2d() const
 {
-    exp_radius = std::exp(-alpha * radius * radius);
+    return image_filter::radius_2d();
 }
 
-float fox_tracer::gaussian_filter::gaussian_1d(const float d) const
+float fox_tracer::filter::box_filter::integral() const
 {
-    const float v = std::exp(-alpha * d * d) - exp_radius;
-    return v > 0.0f ? v : 0.0f;
+    return 4.0f * rx * ry;
 }
 
-float fox_tracer::gaussian_filter::filter(const float x, const float y) const
+int fox_tracer::filter::box_filter::size() const
 {
-    if (std::fabs(x) > radius || std::fabs(y) > radius) return 0.0f;
-    return gaussian_1d(x) * gaussian_1d(y);
+    if (rx <= 0.5f && ry <= 0.5f) return 0;
+
+    return std::max(static_cast<int>(std::ceil(rx)),
+                    static_cast<int>(std::ceil(ry)));
 }
 
-int fox_tracer::gaussian_filter::size() const
-{
-    return static_cast<int>(std::ceil(radius));
-}
-
-fox_tracer::mitchell_netravali_filter::mitchell_netravali_filter(float _b, float _c) noexcept
-    : b_param(_b), c_param(_c)
-{}
-
-float fox_tracer::mitchell_netravali_filter::mitchell_1d(float x) const
-{
-    x = std::fabs(x);
-    if (x < 1.0f)
-    {
-        return (1.0f / 6.0f) * (
-            (12.0f - 9.0f * b_param - 6.0f * c_param) * x * x * x +
-            (-18.0f + 12.0f * b_param + 6.0f * c_param) * x * x +
-            (6.0f - 2.0f * b_param));
-    }
-    if (x < 2.0f)
-    {
-        return (1.0f / 6.0f) * (
-            (-b_param - 6.0f * c_param) * x * x * x +
-            (6.0f * b_param + 30.0f * c_param) * x * x +
-            (-12.0f * b_param - 48.0f * c_param) * x +
-            (8.0f * b_param + 24.0f * c_param));
-    }
-    return 0.0f;
-}
-
-float fox_tracer::mitchell_netravali_filter::filter(float x, float y) const
-{
-    return mitchell_1d(x) * mitchell_1d(y);
-}
-
-int fox_tracer::mitchell_netravali_filter::size() const
-{
-    return 2;
-}
 
 // TODO: look at some famous tonemap from some games and create an enum for selecting any of them runtime
 namespace
@@ -343,7 +398,7 @@ fox_tracer::film::~film()
     delete[] film_buffer;
 }
 
-void fox_tracer::film::init(const int _width, const int _height, std::unique_ptr<image_filter> _filter)
+void fox_tracer::film::init(const int _width, const int _height, std::unique_ptr<filter_type> _filter)
 {
     width  = static_cast<unsigned int>(_width);
     height = static_cast<unsigned int>(_height);
@@ -369,7 +424,7 @@ void fox_tracer::film::increment_spp()
     SPP.fetch_add(1, std::memory_order_relaxed);
 }
 
-void fox_tracer::film::set_filter(std::unique_ptr<image_filter> new_filter) noexcept
+void fox_tracer::film::set_filter(std::unique_ptr<filter_type> new_filter) noexcept
 {
     filter = std::move(new_filter);
 }
@@ -483,6 +538,14 @@ void fox_tracer::film::splat_into(
         buf[buf_idx[i]] = buf[buf_idx[i]]
                         + (L * (filter_weights[i] * inv_total));
     }
+}
+
+void fox_tracer::film::splat_importance(
+    color *buf, int buf_w, int buf_h,
+    int buf_x0, int buf_y0, float x, float y,
+    const color &L, float u1, float u2) const
+{
+
 }
 
 void fox_tracer::film::tonemap(
