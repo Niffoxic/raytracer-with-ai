@@ -118,6 +118,7 @@ add_executable(tracer_engine src/main.cpp
         src/ui/main_menu_bar.cpp
         src/ui/ui_settings.cpp
         src/ui/ui_panel.cpp
+        src/render/denoiser.cpp
 )
 
 target_include_directories(tracer_engine PRIVATE include/)

@@ -25,4 +25,40 @@
 #ifndef RAYTRACER_WITH_AI_DENOISER_H
 #define RAYTRACER_WITH_AI_DENOISER_H
 
+#include "framework/core.h"
+
+namespace fox_tracer::render
+{
+    class denoiser
+    {
+    public:
+         denoiser() noexcept;
+        ~denoiser();
+
+        denoiser(const denoiser&)            = delete;
+        denoiser& operator=(const denoiser&) = delete;
+        denoiser(denoiser&&)                 = delete;
+        denoiser& operator=(denoiser&&)      = delete;
+
+        bool ensure_ready();
+
+        [[nodiscard]] bool available() const noexcept { return device_ != nullptr; }
+
+        bool denoise(const color* color_in,
+                     const color* albedo_in,
+                     const color* normal_in,
+                     color*       color_out,
+                     int          width,
+                     int          height,
+                     bool         hdr);
+
+        bool use_albedo{true};
+        bool use_normal{true};
+        bool hdr_mode  {true};
+
+    private:
+        void* device_{nullptr};
+    };
+} // namespace fox_tracer
+
 #endif //RAYTRACER_WITH_AI_DENOISER_H
