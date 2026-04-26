@@ -125,6 +125,29 @@ namespace fox_tracer
             [[nodiscard]] bool is_two_sided     () const override;
         };
 
+        class conductor final: public base
+        {
+        public:
+            texture* albedo{nullptr};
+            color    eta;
+            color    k;
+            float    alpha{};
+
+            conductor() = default;
+            conductor(texture* _albedo, const color& _eta, const color& _k,
+                           float roughness) noexcept;
+
+            vec3 sample(const shading_data& sd, sampler* s,
+                            color& reflected_colour, float& pdf) override;
+
+            color evaluate  (const shading_data& sd, const vec3& wi) override;
+            float pdf       (const shading_data& sd, const vec3& wi) override;
+            float mask      (const shading_data& sd)                 override;
+
+            [[nodiscard]] bool is_pure_specular () const override;
+            [[nodiscard]] bool is_two_sided     () const override;
+        };
+
         namespace fresnel
         {
             float dielectric(float cos_theta, float ior_int, float ior_ext) noexcept;

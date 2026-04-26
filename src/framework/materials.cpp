@@ -27,6 +27,8 @@
 #include "framework/imaging.h"
 #include "sampler/sampling.h"
 
+// TODO: Add Test Flag so that I can check spec and two sided with false or true without manually changing them!!!
+
 fox_tracer::shading_data::shading_data(const vec3 &_x, const vec3 &n) noexcept
 {
     x            = _x;
@@ -210,6 +212,188 @@ bool fox_tracer::bsdf::mirror::is_pure_specular() const
 bool fox_tracer::bsdf::mirror::is_two_sided() const
 {
     // test: just render black for now
+    // return false;
+    return true;
+}
+
+fox_tracer::bsdf::conductor::conductor(
+    texture *_albedo, const color &_eta,
+    const color &_k, const float roughness) noexcept
+    : albedo(_albedo), eta(_eta), k(_k), alpha(1.62142f * std::sqrt(roughness))
+{
+    //~ TODO: try alpha = r*r the Burley one
+}
+
+fox_tracer::vec3 fox_tracer::bsdf::conductor::sample(
+    const shading_data &sd, sampler *s, color &reflected_colour,
+    float &pdf)
+{
+    //~ GGX microfacet conductor reference
+    //~ fr = F * D * G / (4 * cos theta o * cos theta i)
+    //~ F = fc(wo.h: should be abs if I remember correctly, eta, k)
+    //~ D = a^2 / (pi * (cos_theta_h^2 * (a^2 - 1) + 1)^2)
+    //~ G = 1 / (1 + lambda(wi) + lambda(wo))
+
+    const vec3 wo_local = sd.shading_frame.to_local(sd.wo);
+
+    if (wo_local.z <= 0.0f)
+    {
+        pdf = 0.0f;
+        reflected_colour = color(0.0f, 0.0f, 0.0f);
+        return sd.wo;
+    }
+
+    const color tint = albedo->sample(sd.tu, sd.tv);
+
+    if (alpha < math::epsilon<float>)
+    {
+        const vec3 wi_local(-wo_local.x, -wo_local.y, wo_local.z);
+
+        const float cos_theta = std::max(
+            math::epsilon<float>,
+            std::fabs(wi_local.z)
+        );
+        //~ at normal incidence dir should be h = n so woh = woz
+        const color  F = fresnel::conductor(cos_theta, eta, k);
+
+        pdf              = 1.0f;
+        reflected_colour = tint * F / cos_theta;
+
+        return sd.shading_frame.to_world(wi_local);
+    }
+    //~ Walter eq
+    //~ cos_h = sqrt((1 - xi1) / ((a^2 - 1)*xi1 + 1))
+    //~ phi   = 2*pi*xi2
+
+    //~ Beckmann sampling swapped to GGX for being heavy
+    // const float tan2 = -a2 * std::log(1.0f - r1);
+    // const float cos_h = 1.0f / std::sqrt(1.0f + tan2);
+
+    // TODO: VNDF sampling Hetz - importance-sample D*G1 instead
+    // of just D kills fireflies on grazing wo
+
+    const float r1 = s->next();
+    const float r2 = s->next();
+    const float a2 = alpha * alpha;
+
+    const float cos_theta_h = std::sqrt(std::max(0.0f,
+                                (1.0f - r1) / ((a2 - 1.0f) * r1 + 1.0f)));
+
+    const float sin_theta_h = std::sqrt(std::max(0.0f,
+                                1.0f - cos_theta_h * cos_theta_h));
+
+    const float phi = 2.0f * math::pi<float> * r2;
+
+    const vec3 h_local(std::cos(phi) * sin_theta_h,
+                       std::sin(phi) * sin_theta_h,
+                       cos_theta_h);
+
+    //~ wi = 2(wo.h)h - wo
+    const float    wo_dot_h = math::dot(wo_local, h_local);
+    const vec3 wi_local = (h_local * (2.0f * wo_dot_h)) - wo_local;
+
+    if (wi_local.z <= 0.0f)
+    {
+        pdf = 0.0f;
+        reflected_colour = color(0.0f, 0.0f, 0.0f);
+        return sd.shading_frame.to_world(wi_local);
+    }
+
+    const float D = ggx::d(h_local, alpha);
+    const float G = ggx::g(wi_local, wo_local, alpha);
+    const color F = fresnel::conductor(std::fabs(wo_dot_h), eta, k);
+
+    const float abs_wo_dot_h = std::max(
+        math::epsilon<float>,
+        std::fabs(wo_dot_h)
+    );
+
+    //~ half-vector PDF transform
+    pdf = D * cos_theta_h / (4.0f * abs_wo_dot_h);
+
+    const float denom = 4.0f * std::max(math::epsilon<float>, wo_local.z)
+                       * std::max(math::epsilon<float>, wi_local.z);
+
+    reflected_colour = tint * F * (D * G / denom);
+    return sd.shading_frame.to_world(wi_local);
+}
+
+fox_tracer::color fox_tracer::bsdf::conductor::evaluate(
+    const shading_data &sd, const vec3 &wi)
+{
+    if (alpha < math::epsilon<float>) return {0.0f, 0.0f, 0.0f};
+
+    const vec3 wo_local = sd.shading_frame.to_local(sd.wo);
+    const vec3 wi_local = sd.shading_frame.to_local(wi);
+
+    if (wi_local.z <= 0.0f || wo_local.z <= 0.0f)
+        return {0.0f, 0.0f, 0.0f};
+
+
+    // vec3 h_local = math::normalize(wi_local + wo_local);
+    vec3 h_local = (wi_local + wo_local);
+    const float h_len = std::sqrt(h_local.x * h_local.x
+                                + h_local.y * h_local.y
+                                + h_local.z * h_local.z);
+
+    if (h_len <= 0.0f) return {0.0f, 0.0f, 0.0f};
+
+    h_local = h_local / h_len;
+
+    //~ fr = F * D * G / (4 * cos_o * cos_i)
+    const float D = ggx::d(h_local, alpha);
+    const float G = ggx::g(wi_local, wo_local, alpha);
+    const color F = fresnel::conductor(
+        std::fabs(math::dot(wo_local, h_local)),
+        eta, k);
+
+    const color tint  = albedo->sample(sd.tu, sd.tv);
+    const float denom = 4.0f * wo_local.z * wi_local.z;
+
+    return tint * F * (D * G / denom);
+}
+
+float fox_tracer::bsdf::conductor::pdf(const shading_data &sd, const vec3 &wi)
+{
+    if (alpha < math::epsilon<float>) return 0.0f;
+
+    //~ ref: p(wi) = D * cos_h / (4 * |wo.h|)
+
+    const vec3 wo_local = sd.shading_frame.to_local(sd.wo);
+    const vec3 wi_local = sd.shading_frame.to_local(wi);
+
+    if (wi_local.z <= 0.0f || wo_local.z <= 0.0f) return 0.0f;
+
+    vec3 h_local = (wi_local + wo_local);
+    const float h_len = std::sqrt(h_local.x * h_local.x
+                                + h_local.y * h_local.y
+                                + h_local.z * h_local.z);
+    if (h_len <= 0.0f) return 0.0f;
+
+    h_local = h_local / h_len;
+    const float D = ggx::d(h_local, alpha);
+
+    const float abs_wo_dot_h = std::max(math::epsilon<float>,
+        std::fabs(math::dot(wo_local, h_local)));
+
+    return D * std::fabs(h_local.z) / (4.0f * abs_wo_dot_h);
+}
+
+float fox_tracer::bsdf::conductor::mask(const shading_data &sd)
+{
+    //~ test opaque
+    // return 1.0f;
+    return albedo->sample_alpha(sd.tu, sd.tv);
+}
+
+bool fox_tracer::bsdf::conductor::is_pure_specular() const
+{
+    return alpha < math::epsilon<float>;
+}
+
+bool fox_tracer::bsdf::conductor::is_two_sided() const
+{
+    // test only: strict one-sided back faces black
     // return false;
     return true;
 }
