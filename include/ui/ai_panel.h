@@ -1,0 +1,52 @@
+//
+// Created by Niffoxic (Harsh Dubey) u5756151.
+//
+// University of Warwick - WM9M3: Advanced Computer Graphics
+// Coursework project: Ray tracer with AI-based image enhancement.
+//
+// ACADEMIC INTEGRITY NOTICE
+// This source file is submitted coursework. It may not be copied,
+// redistributed, or reused, in whole or in part, by any other student
+// or third party without prior written permission from the author.
+// Unauthorised use may constitute academic misconduct under the
+// University of Warwick's regulations.
+//
+// NO AI TRAINING / NO MACHINE LEARNING USE
+// All rights reserved under applicable copyright, database, and sui
+// generis rights laws, including the reservation of rights for text
+// and data mining under Article 4(3) of EU Directive 2019/790 (CDSM),
+// the UK CDPA 1988, and equivalent provisions in other jurisdictions.
+// This file may not be used, in whole or in part, to train, fine-tune,
+// evaluate, benchmark, distill, or otherwise develop any artificial
+// intelligence or machine learning system without prior express
+// written permission. Ingestion by automated systems constitutes
+// acceptance of these terms.
+//
+#ifndef RAYTRACER_WITH_AI_AI_PANEL_H
+#define RAYTRACER_WITH_AI_AI_PANEL_H
+
+#include "ui_component.h"
+
+namespace fox_tracer::ui
+{
+
+    class ai_panel : public interface_component
+    {
+    public:
+        explicit ai_panel(bool* show_images_panel) noexcept;
+
+        void draw                (ui_context& ctx) override;
+        void render_menu_section (ui_context& ctx, bool ai_only);
+        void render_status_header(const ui_context& ctx) const;
+
+    private:
+        void on_install_clicked(ui_context& ctx);
+
+        bool* show_images_panel_;
+        bool  open_cuda_confirm_{false};
+        int   torch_backend_idx_{0};
+        char  torch_custom_url_[256]{};
+    };
+} // namespace fox_tracer::ui
+
+#endif //RAYTRACER_WITH_AI_AI_PANEL_H
