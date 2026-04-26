@@ -398,6 +398,100 @@ bool fox_tracer::bsdf::conductor::is_two_sided() const
     return true;
 }
 
+fox_tracer::bsdf::glass::glass(
+    texture *_albedo, const float _int_ior,
+    const float _ext_ior) noexcept
+:   albedo(_albedo), int_ior(_int_ior),
+    ext_ior(_ext_ior)
+{}
+
+fox_tracer::vec3 fox_tracer::bsdf::glass::sample(
+    const shading_data &sd, sampler *s,
+    color &reflected_colour,float &pdf)
+{
+    //~ Reference
+    // smooth dielectric two Dirac lobes (reflect and refract)
+    //~ P(reflect) = F, P(refract) = 1 - F
+    //~ reflect wr = (-wo.x, -wo.y, wo.z)
+    //~ refract Snell wt = -eta*wo + (eta*cos_i - cos_t) * n
+    //~ where eta = eta_i / eta_t
+
+    const vec3 wo_local = sd.shading_frame.to_local(sd.wo);
+    const bool  entering = wo_local.z > 0.0f;
+
+    const float eta_i = entering ? ext_ior : int_ior;
+    const float eta_t = entering ? int_ior : ext_ior;
+    const float cos_theta_i = std::fabs(wo_local.z);
+
+    const float F    = fresnel::dielectric(wo_local.z, int_ior, ext_ior);
+    const color tint = albedo->sample(sd.tu, sd.tv);
+
+    const float eta          = eta_i / eta_t;
+    const float sin2_theta_t = eta * eta * std::max(0.0f,
+                                   1.0f - cos_theta_i * cos_theta_i);
+
+    if (const bool tir = (sin2_theta_t >= 1.0f); tir || s->next() < F)
+    {
+        //~ tir or russian roulette pick on F take the reflection lobe
+        const vec3 wi_local(-wo_local.x, -wo_local.y, wo_local.z);
+        const float cos_out = std::max(
+            math::epsilon<float>,
+            std::fabs(wi_local.z)
+        );
+
+        pdf = tir ? 1.0f : F;
+        reflected_colour = tint * (pdf / cos_out);
+
+        return sd.shading_frame.to_world(wi_local);
+    }
+    //~ refraction lobe
+    const float cos_theta_t = std::sqrt(std::max(0.0f, 1.0f - sin2_theta_t));
+
+    const vec3 wi_local(
+        -eta * wo_local.x,
+        -eta * wo_local.y,
+        entering ? -cos_theta_t : cos_theta_t);
+
+    const float cos_out = std::max(math::epsilon<float>, std::fabs(wi_local.z));
+    const float one_minus_F = 1.0f - F;
+
+    pdf = one_minus_F;
+
+    const float eta_scale = (eta_t / eta_i) * (eta_t / eta_i);
+    reflected_colour = tint * (one_minus_F * eta_scale / cos_out);
+
+    // TODO: rough dielectric GGX d*g distribution on h if time
+    // TODO: wave length dependent ior chromatic dispersion or prism if time
+    // TODO: Beer Lambert absorption inside the medium if time
+
+    return sd.shading_frame.to_world(wi_local);
+}
+
+fox_tracer::color fox_tracer::bsdf::glass::evaluate(const shading_data &sd, const vec3 &wi)
+{
+    return {0.0f, 0.0f, 0.0f};
+}
+
+float fox_tracer::bsdf::glass::pdf(const shading_data &sd, const vec3 &wi)
+{
+    return 0.0f;
+}
+
+float fox_tracer::bsdf::glass::mask(const shading_data &sd)
+{
+    return albedo->sample_alpha(sd.tu, sd.tv);
+}
+
+bool fox_tracer::bsdf::glass::is_pure_specular() const
+{
+    return true;
+}
+
+bool fox_tracer::bsdf::glass::is_two_sided() const
+{
+    return false;
+}
+
 float fox_tracer::bsdf::fresnel::dielectric(
     float cos_theta, const float ior_int, const float ior_ext) noexcept
 {
