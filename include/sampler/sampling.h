@@ -25,7 +25,7 @@
 #ifndef RAYTRACER_WITH_AI_SAMPLING_H
 #define RAYTRACER_WITH_AI_SAMPLING_H
 
-#include "../framework/core.h"
+#include "framework/core.h"
 #include <random>
 
 namespace fox_tracer

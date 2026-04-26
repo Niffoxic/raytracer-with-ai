@@ -61,7 +61,7 @@ namespace fox_tracer
         }
 
         template<typename T>
-        requires std::is_floating_point_v<T>
+        requires std::is_floating_position_v<T>
         inline T erf_inv_approx(T y)
         {
             constexpr T a             = T(0.147);
@@ -77,7 +77,7 @@ namespace fox_tracer
         }
 
         template<typename T>
-        requires std::is_floating_point_v<T>
+        requires std::is_floating_position_v<T>
         inline T windowed_sinc(T x, T radius, T tau)
         {
             x = std::fabs(x);
@@ -176,8 +176,8 @@ namespace fox_tracer
     // TODO: Benchmark it if needed make it cacheline fit
     struct vertex
     {
-        vec3 point {};
-        vec3 normal{};
+        vec3 position {};
+        vec3 normal   {};
 
         float u{};
         float v{};
@@ -213,9 +213,9 @@ namespace fox_tracer
         matrix& operator=(const matrix& rhs) noexcept;
 
         [[nodiscard]] vec3 mul_vec  (const vec3& v) const noexcept;
-        [[nodiscard]] vec3 mul_point(const vec3& v) const noexcept;
+        [[nodiscard]] vec3 mul_position(const vec3& v) const noexcept;
 
-        [[nodiscard]] vec3 mul_point_and_perspective_divide(const vec3& v) const noexcept;
+        [[nodiscard]] vec3 mul_position_and_perspective_divide(const vec3& v) const noexcept;
     };
 
     class frame
