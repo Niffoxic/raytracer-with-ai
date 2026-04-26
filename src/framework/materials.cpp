@@ -105,7 +105,6 @@ fox_tracer::vec3 fox_tracer::bsdf::diffuse::sample(
     return sd.shading_frame.to_world(wi_local);
 }
 
-
 fox_tracer::color fox_tracer::bsdf::diffuse::evaluate(
     const shading_data &sd, const vec3 &wi)
 {
@@ -149,6 +148,69 @@ bool fox_tracer::bsdf::diffuse::is_pure_specular() const
 
 bool fox_tracer::bsdf::diffuse::is_two_sided() const
 {
+    return true;
+}
+
+fox_tracer::bsdf::mirror::mirror(texture *_albedo) noexcept
+    : albedo(_albedo)
+{}
+
+fox_tracer::vec3 fox_tracer::bsdf::mirror::sample(
+    const shading_data &sd, sampler *s,
+    color &reflected_colour, float &pdf)
+{
+    //~ Dirac delta BSDF refernce formula
+    //~ fr(wo, wi) = rho * delta(wi - wr) / cos_theta_i
+    //~ wr = reflect(wo, n) = (-wo.x, -wo.y, wo.z)
+
+    const vec3 wo_local = sd.shading_frame.to_local(sd.wo);
+
+    //~ wr = 2(wo.n)n - wo
+    // const vec3 n = sd.s_normal;
+    // const vec3 wi_world = (n * (2.0f * math::dot(sd.wo, n))) - sd.wo;
+    // return wi_world;
+
+    const vec3 wi_local(-wo_local.x, -wo_local.y, wo_local.z);
+
+    //~ TODO: handle wo_local.z <= 0 (back-face hit) - currently relies
+    //~ on integrator's two-sided flip
+
+    //~ delta cancel in MC ratio: fr * cos / pdf = rho
+    //~ store as rho / cos so integrators cos theta multiply cancels
+    const float cos_theta = std::max(math::epsilon<float>, std::fabs(wi_local.z));
+
+    pdf = 1.0f;
+    reflected_colour = albedo->sample(sd.tu, sd.tv) / cos_theta;
+
+    return sd.shading_frame.to_world(wi_local);
+}
+
+fox_tracer::color fox_tracer::bsdf::mirror::evaluate(
+    const shading_data &sd, const vec3 &wi)
+{
+    return {0.0f, 0.0f, 0.0f};
+}
+
+float fox_tracer::bsdf::mirror::pdf(const shading_data &sd, const vec3 &wi)
+{
+    return 0.0f;
+}
+
+float fox_tracer::bsdf::mirror::mask(const shading_data &sd)
+{
+    // return 1.0f;
+    return albedo->sample_alpha(sd.tu, sd.tv);
+}
+
+bool fox_tracer::bsdf::mirror::is_pure_specular() const
+{
+    return true;
+}
+
+bool fox_tracer::bsdf::mirror::is_two_sided() const
+{
+    // test: just render black for now
+    // return false;
     return true;
 }
 
