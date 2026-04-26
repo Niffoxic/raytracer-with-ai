@@ -575,6 +575,118 @@ bool fox_tracer::bsdf::dielectric::is_two_sided() const
     return false;
 }
 
+fox_tracer::bsdf::oren_nayar::oren_nayar(texture *_albedo, const float _sigma) noexcept
+    : albedo(_albedo), sigma(_sigma)
+{
+    // TODO: precompute A, B
+}
+
+fox_tracer::vec3 fox_tracer::bsdf::oren_nayar::sample(
+    const shading_data &sd, sampler *s,
+    color &reflected_colour, float &pdf)
+{
+    //~ Oren-Nayar microfacet diffuse no closed form importance sampler
+    //~ fall back to hemisphere sampling
+    const auto mode = static_cast<hemisphere_sampling>(
+               config().hemisphere_mode.load(std::memory_order_relaxed));
+
+    vec3 wi_local;
+    if (mode == hemisphere_sampling::uniform)
+    {
+        wi_local = sampling::uniform_sample_hemisphere(s->next(), s->next());
+        pdf      = sampling::uniform_hemisphere_pdf(wi_local);
+    }
+    else
+    {
+        wi_local = sampling::cosine_sample_hemisphere(s->next(), s->next());
+        pdf      = sampling::cosine_hemisphere_pdf(wi_local);
+    }
+
+    //~ to_world then evaluate does to_local again wasted transform
+    // TODO: split out evaluate_local(wi_local) helper to skip the round-trip
+
+    const vec3 wi_world = sd.shading_frame.to_world(wi_local);
+
+    reflected_colour = evaluate(sd, wi_world);
+    return wi_world;
+}
+
+fox_tracer::color fox_tracer::bsdf::oren_nayar::evaluate(
+    const shading_data &sd, const vec3 &wi)
+{
+    //~ Oren-Nayar reference
+    //~ f = (rho/pi) * (A + B * max(0, cos(phi_i - phi_o)) * sin(alpha) * tan(beta))
+    //~ A = 1 - 0.5 * s2 / (s2 + 0.33)
+    //~ B = 0.45 * s2 / (s2 + 0.09)
+    //~ alpha = max(theta_i, theta_o),  beta = min(theta_i, theta_o)
+    //~ s2 = sigma^2
+
+    const vec3 wi_local = sd.shading_frame.to_local(wi);
+    const vec3 wo_local = sd.shading_frame.to_local(sd.wo);
+
+    if (wi_local.z <= 0.0f || wo_local.z <= 0.0f)
+        return {0.0f, 0.0f, 0.0f};
+
+    // TODO: Fujii: try generalized ON - drops the max() and trig for faster
+    const float s2 = sigma * sigma;
+    const float A  = 1.0f - 0.5f * s2 / (s2 + 0.33f);
+    const float B  = 0.45f * s2 / (s2 + 0.09f);
+
+    const float sin_theta_i = std::sqrt(std::max(0.0f, 1.0f - wi_local.z * wi_local.z));
+    const float sin_theta_o = std::sqrt(std::max(0.0f, 1.0f - wo_local.z * wo_local.z));
+
+    float max_cos = 0.0f;
+
+    if (sin_theta_i > math::epsilon<float> && sin_theta_o > math::epsilon<float>)
+    {
+        const float d_cos = (wi_local.x * wo_local.x + wi_local.y * wo_local.y)
+                          / (sin_theta_i * sin_theta_o);
+        max_cos = std::max(0.0f, d_cos);
+    }
+
+    //~ alpha = larger angle => smaller cos => smaller wi.z or wo.z
+    //~ beta  = smaller angle => larger cos
+    //~ sin(alpha) = sin of whichever has the smaller cos
+    //~ tan(beta)  = sin/cos of whichever has the larger cos
+    const float cos_alpha = std::min(wi_local.z, wo_local.z);
+    const float cos_beta  = std::max(wi_local.z, wo_local.z);
+    const float sin_alpha = std::sqrt(1 - cos_alpha*cos_alpha);
+    const float tan_beta  = std::sqrt(1 - cos_beta*cos_beta) / cos_beta;
+
+    const color rho = albedo->sample(sd.tu, sd.tv);
+    return rho * (1.0 / math::pi<float>)
+               * (A + B * max_cos * sin_alpha * tan_beta);
+}
+
+float fox_tracer::bsdf::oren_nayar::pdf(const shading_data &sd, const vec3 &wi)
+{
+    const auto mode = static_cast<hemisphere_sampling>(
+        config().hemisphere_mode.load(std::memory_order_relaxed)
+    );
+
+    const vec3 wi_local = sd.shading_frame.to_local(wi);
+
+    if (mode == hemisphere_sampling::uniform)
+        return sampling::uniform_hemisphere_pdf(wi_local);
+
+    return sampling::cosine_hemisphere_pdf(wi_local);
+}
+
+float fox_tracer::bsdf::oren_nayar::mask(const shading_data &sd)
+{
+    return albedo->sample_alpha(sd.tu, sd.tv);
+}
+
+bool fox_tracer::bsdf::oren_nayar::is_pure_specular() const
+{
+    return false;
+}
+
+bool fox_tracer::bsdf::oren_nayar::is_two_sided() const
+{
+    return true;
+}
+
 float fox_tracer::bsdf::fresnel::dielectric(
     float cos_theta, const float ior_int, const float ior_ext) noexcept
 {

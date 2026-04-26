@@ -192,6 +192,26 @@ namespace fox_tracer
             [[nodiscard]] bool is_two_sided     () const override;
         };
 
+        class oren_nayar final: public base
+        {
+        public:
+            texture* albedo{nullptr};
+            float    sigma {};
+
+            oren_nayar() = default;
+            oren_nayar(texture* _albedo, float _sigma) noexcept;
+
+            vec3 sample(const shading_data& sd, sampler* s,
+                            color& reflected_colour, float& pdf) override;
+
+            color evaluate  (const shading_data& sd, const vec3& wi) override;
+            float pdf       (const shading_data& sd, const vec3& wi) override;
+            float mask      (const shading_data& sd)                 override;
+
+            [[nodiscard]] bool is_pure_specular () const override;
+            [[nodiscard]] bool is_two_sided     () const override;
+        };
+
         namespace fresnel
         {
             float dielectric(float cos_theta, float ior_int, float ior_ext) noexcept;
