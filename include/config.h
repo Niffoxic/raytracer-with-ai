@@ -36,15 +36,25 @@ namespace fox_tracer
         uniform         = 1
     };
 
+    enum class light_pick
+    {
+        uniform        = 0,
+        power_weighted = 1
+    };
+
     struct rt_defaults
     {
-        static constexpr int  hemisphere_mode  =
-            static_cast<int>(hemisphere_sampling::cosine_weighted);
+        static constexpr int  hemisphere_mode  = static_cast<int>(hemisphere_sampling::cosine_weighted);
+        static constexpr int  light_pick_mode  = static_cast<int>(light_pick::uniform);
+        static constexpr bool use_bvh = true;
     };
 
     struct rt_config
     {
-        std::atomic<int>  hemisphere_mode{rt_defaults::hemisphere_mode};
+        std::atomic<int>  hemisphere_mode{ rt_defaults::hemisphere_mode };
+        std::atomic<bool> use_bvh        { rt_defaults::use_bvh };
+        std::atomic<int>  light_pick_mode{ rt_defaults::light_pick_mode };
+
     };
 
     inline rt_config& config() noexcept

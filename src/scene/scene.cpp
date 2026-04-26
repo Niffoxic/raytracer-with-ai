@@ -25,12 +25,16 @@
 #include "scene/scene.h"
 #include "scene/scene_loader.h"
 
+#include "utils/assets_loader.h"
 #include "sampler/sampling.h"
 #include "config.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cfloat>
+
+#include "framework/imaging.h"
+#include "utils/logger.h"
 
 void fox_tracer::camera::init(
     const matrix &projection, const int screen_width,
@@ -213,4 +217,285 @@ void fox_tracer::camera::update_basis_cache() noexcept
     forward_ws = camera_to_world.mul_vec(p00);
     right_ws   = camera_to_world.mul_vec(p10 - p00);
     up_ws      = camera_to_world.mul_vec(p01 - p00);
+}
+
+fox_tracer::texture_cache::~texture_cache()
+{
+    for (auto& kv : textures_)
+    {
+        delete kv.second;
+    }
+}
+
+fox_tracer::texture * fox_tracer::texture_cache::get_or_load(const std::string &filename)
+{
+    {
+        std::shared_lock<std::shared_mutex> rlock(mtx_);
+        const auto it = textures_.find(filename);
+        if (it != textures_.end()) return it->second;
+    }
+    auto* tex = new texture();
+    tex->load(filename);
+
+    if (tex->texels == nullptr || tex->width <= 0 || tex->height <= 0)
+    {
+        LOG_WARN("texture") << "load failed (using default): " << filename;
+    }
+    else
+    {
+        LOG_DEBUG("texture") << "loaded " << filename
+                             << " (" << tex->width << "x" << tex->height
+                             << ", ch=" << tex->channels << ")";
+    }
+
+    std::unique_lock<std::shared_mutex> wlock(mtx_);
+    const auto it = textures_.find(filename);
+    if (it != textures_.end())
+    {
+        delete tex;
+        return it->second;
+    }
+    textures_.insert({filename, tex});
+    return tex;
+}
+
+fox_tracer::scene::container::~container()
+{
+    delete bvh;
+
+    for (const lights::base* l : lights)
+    {
+        if (l != background)
+        {
+            delete l;
+        }
+    }
+    delete background;
+    for (const bsdf::base* m : materials)
+    {
+        delete m;
+    }
+}
+
+void fox_tracer::scene::container::init(
+    const std::vector<geometry::triangle> &mesh_triangles,
+    const std::vector<bsdf::base *> &mesh_materials,
+    lights::base *_background)
+{
+    for (const auto& t : mesh_triangles)
+    {
+        triangles.push_back(t);
+        bounds.extend(t.vertices[0].position);
+        bounds.extend(t.vertices[1].position);
+        bounds.extend(t.vertices[2].position);
+    }
+    for (bsdf::base* m: mesh_materials)
+    {
+        materials.push_back(m);
+    }
+    background = _background;
+    if (background != nullptr && background->total_integrated_power() > 0.0f)
+    {
+        background_light_idx = static_cast<int>(lights.size());
+        lights.push_back(background);
+    }
+    else
+    {
+        background_light_idx = -1;
+    }
+}
+
+void fox_tracer::scene::container::build()
+{
+    std::vector<geometry::triangle> input_triangles;
+    input_triangles.reserve(triangles.size());
+    for (const auto& t : triangles)
+    {
+        input_triangles.push_back(t);
+    }
+    triangles.clear();
+
+    delete bvh;
+    bvh = nullptr;
+
+    if (!input_triangles.empty())
+    {
+        bvh = new accelerated_structure::bvh_node();
+        bvh->build(input_triangles, triangles);
+    }
+
+    triangle_to_light.assign(triangles.size(), -1);
+    for (size_t i = 0; i < triangles.size(); ++i)
+    {
+        if (materials[triangles[i].material_index]->is_light())
+        {
+            auto* al = new lights::area();
+            al->tri      = &triangles[i];
+            al->emission = materials[triangles[i].material_index]->emission;
+            triangle_to_light[i] = static_cast<int>(lights.size());
+            lights.push_back(al);
+        }
+    }
+
+    light_power_cdf.clear();
+    light_power_cdf.reserve(lights.size());
+    float running = 0.0f;
+    for (lights::base* L : lights)
+    {
+        running += std::max(0.0f, L->total_integrated_power());
+        light_power_cdf.push_back(running);
+    }
+}
+
+fox_tracer::accelerated_structure::intersection_data fox_tracer::scene::container::traverse(
+    const geometry::ray &r) const
+{
+    if (config().use_bvh.load(std::memory_order_relaxed) && bvh != nullptr)
+    {
+        return bvh->traverse(r, triangles);
+    }
+    accelerated_structure::intersection_data intersection;
+    intersection.t = FLT_MAX;
+    for (size_t i = 0; i < triangles.size(); ++i)
+    {
+        float t, u, v;
+        if (triangles[i].ray_intersect(r, t, u, v))
+        {
+            if (t < intersection.t)
+            {
+                intersection.t     = t;
+                intersection.ID    = static_cast<unsigned int>(i);
+                intersection.alpha = u;
+                intersection.beta  = v;
+                intersection.gamma = 1.0f - (u + v);
+            }
+        }
+    }
+    return intersection;
+}
+
+fox_tracer::lights::base * fox_tracer::scene::container::sample_light(
+    sampler *s, float &pmf) const
+{
+    if (lights.empty())
+    {
+        pmf = 0.0f;
+        return nullptr;
+    }
+    const int n = static_cast<int>(lights.size());
+
+    const auto mode = static_cast<light_pick>(config().light_pick_mode.load(std::memory_order_relaxed));
+
+    if (mode == light_pick::power_weighted
+        && !light_power_cdf.empty()
+        && light_power_cdf.back() > 0.0f)
+    {
+        const float total = light_power_cdf.back();
+        const float u     = s->next() * total;
+
+        auto it = std::ranges::lower_bound(light_power_cdf, u);
+
+        int idx = static_cast<int>(it - light_power_cdf.begin());
+        if (idx >= n) idx = n - 1;
+
+        const float prev = (idx > 0) ? light_power_cdf[idx - 1] : 0.0f;
+        pmf = (light_power_cdf[idx] - prev) / total;
+        return lights[idx];
+    }
+
+    const int idx = std::min(static_cast<int>(s->next() * static_cast<float>(n)), n - 1);
+    pmf = 1.0f / static_cast<float>(n);
+    return lights[idx];
+}
+
+bool fox_tracer::scene::container::visible(const vec3 &p1, const vec3 &p2) const
+{
+    geometry::ray r;
+    vec3 dir = p2 - p1;
+    const float max_t = dir.length() - (2.0f * math::epsilon<float>);
+    dir = dir.normalize();
+    r.init(p1 + (dir * math::epsilon<float>), dir);
+
+    if (config().use_bvh.load(std::memory_order_relaxed) && bvh != nullptr)
+    {
+        return bvh->traverse_visible(r, triangles, max_t);
+    }
+
+    for (const auto & triangle : triangles)
+    {
+        float t, u, v;
+        if (triangle.ray_intersect(r, t, u, v) && t < max_t)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+fox_tracer::color fox_tracer::scene::container::emit(
+    const geometry::triangle *light_tri,
+    const shading_data &sd,
+    const vec3 &wi) const
+{
+    return materials[light_tri->material_index]->emit(sd, wi);
+}
+
+float fox_tracer::scene::container::light_pmf_by_index(int light_idx) const noexcept
+{
+    const int n = static_cast<int>(lights.size());
+    if (n <= 0 || light_idx < 0 || light_idx >= n) return 0.0f;
+
+    const auto mode = static_cast<light_pick>(
+        config().light_pick_mode.load(std::memory_order_relaxed));
+
+    if (mode == light_pick::power_weighted
+        && !light_power_cdf.empty()
+        && light_power_cdf.back() > 0.0f)
+    {
+        const float total = light_power_cdf.back();
+        const float prev  = (light_idx > 0) ? light_power_cdf[light_idx - 1] : 0.0f;
+        return (light_power_cdf[light_idx] - prev) / total;
+    }
+
+    return 1.0f / static_cast<float>(n);
+}
+
+fox_tracer::shading_data fox_tracer::scene::container::calculate_shading_data(
+    const accelerated_structure::intersection_data &intersection,
+    const geometry::ray &r) const
+{
+    shading_data sd;
+
+    if (intersection.t < FLT_MAX)
+    {
+        sd.x         = r.at(intersection.t);
+        sd.g_normal  = triangles[intersection.ID].g_normal();
+
+        triangles[intersection.ID].interpolate_attributes(
+            intersection.alpha, intersection.beta, intersection.gamma,
+            sd.s_normal, sd.tu, sd.tv);
+
+        sd.surface_bsdf = materials[triangles[intersection.ID].material_index];
+        sd.wo           = -r.dir;
+
+        if (sd.surface_bsdf->is_two_sided())
+        {
+            if (math::dot(sd.wo, sd.s_normal) < 0.0f)
+            {
+                sd.s_normal = -sd.s_normal;
+            }
+            if (math::dot(sd.wo, sd.g_normal) < 0.0f)
+            {
+                sd.g_normal = -sd.g_normal;
+            }
+        }
+        sd.shading_frame.from_vector(sd.s_normal);
+        sd.t = intersection.t;
+    }
+    else
+    {
+        sd.wo = -r.dir;
+        sd.t  = intersection.t;
+    }
+    return sd;
 }
