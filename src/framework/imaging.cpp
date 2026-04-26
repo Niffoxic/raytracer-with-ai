@@ -23,7 +23,7 @@
 // acceptance of these terms.
 //
 #include "framework/imaging.h"
-#include "logger.h"
+#include "utils/logger.h"
 
 #include "stb_image.h"
 #include "stb_image_write.h"
@@ -31,7 +31,6 @@
 #include <algorithm>
 #include <cmath>
 #include <utility>
-#include "config.h"
 
 fox_tracer::texture::~texture()
 {
@@ -323,7 +322,7 @@ float fox_tracer::filter::box_filter::filter(const float x, const float y) const
 
 float fox_tracer::filter::box_filter::evaluate(const float x, const float y) const
 {
-    if (std::fabs(x) < rx && std::fabs(y) < ry)
+    if (std::fabs(x) <= rx && std::fabs(y) <= ry)
     {
         return 1.0f;
     }
@@ -340,7 +339,7 @@ fox_tracer::filter::filter_sample fox_tracer::filter::box_filter::sample(
 
 fox_tracer::vec2 fox_tracer::filter::box_filter::radius_2d() const
 {
-    return image_filter::radius_2d();
+    return {rx, ry};;
 }
 
 float fox_tracer::filter::box_filter::integral() const
@@ -403,7 +402,7 @@ fox_tracer::filter::filter_sample fox_tracer::filter::gaussian_filter::sample(co
 
 fox_tracer::vec2 fox_tracer::filter::gaussian_filter::radius_2d() const
 {
-    return image_filter::radius_2d();
+    return radius_xy;
 }
 
 float fox_tracer::filter::gaussian_filter::integral() const
@@ -477,7 +476,7 @@ fox_tracer::filter::filter_sample fox_tracer::filter::mitchell_netravali_filter:
 
 fox_tracer::vec2 fox_tracer::filter::mitchell_netravali_filter::radius_2d() const
 {
-    return image_filter::radius_2d();
+    return radius_xy;
 }
 
 float fox_tracer::filter::mitchell_netravali_filter::integral() const
@@ -649,14 +648,17 @@ void fox_tracer::film::set_filter(std::unique_ptr<filter_type> new_filter) noexc
     filter = std::move(new_filter);
 }
 
-void fox_tracer::film::splat(float x, float y, const color &L) const
+void fox_tracer::film::splat(const float x, const float y, const color &L) const
 {
-    float        filter_weights[25];
-    unsigned int indices       [25];
+    const int s = filter->size();
+    const int span = 2 * s + 1;
+    const int cap  = span * span;
+
+    std::vector<float>        filter_weights(cap);
+    std::vector<unsigned int> indices       (cap);
     unsigned int used  = 0;
     float        total = 0.0f;
 
-    const int s = filter->size();
     for (int i = -s; i <= s; ++i)
     {
         for (int j = -s; j <= s; ++j)
@@ -710,8 +712,11 @@ void fox_tracer::film::splat_into(
         return;
     }
 
-    float filter_weights[25];
-    int   buf_idx       [25];
+    const int span = 2 * s + 1;
+    const int cap  = span * span;
+
+    std::vector<float> filter_weights(cap);
+    std::vector<int>   buf_idx       (cap);
     int   used  = 0;
     float total = 0.0f;
 
@@ -761,11 +766,30 @@ void fox_tracer::film::splat_into(
 }
 
 void fox_tracer::film::splat_importance(
-    color *buf, int buf_w, int buf_h,
-    int buf_x0, int buf_y0, float x, float y,
-    const color &L, float u1, float u2) const
+    color *buf, const int buf_w, const int buf_h,
+    const int buf_x0, const int buf_y0, float x, const float y,
+    const color &L, const float u1, const float u2) const
 {
+    if (filter == nullptr) return;
 
+    const auto fs = filter->sample(u1, u2);
+
+    const float deposit_x = x + fs.x;
+    const float deposit_y = y + fs.y;
+
+    const int   px = static_cast<int>(deposit_x);
+    const int   py = static_cast<int>(deposit_y);
+
+    if (px < 0 || px >= static_cast<int>(width) ||
+        py < 0 || py >= static_cast<int>(height)) return;
+
+    const int lx = px - buf_x0;
+    const int ly = py - buf_y0;
+
+    if (lx < 0 || lx >= buf_w || ly < 0 || ly >= buf_h) return;
+
+    const color contribution = L * fs.weight;
+    buf[ly * buf_w + lx] = buf[ly * buf_w + lx] + contribution;
 }
 
 void fox_tracer::film::tonemap(
@@ -914,19 +938,26 @@ void fox_tracer::adaptive_sampler::allocate_samples(const int total_samples, con
         assigned_extra += extra;
     }
 
-    if (const int leftover = remaining - assigned_extra; leftover > 0)
+    int leftover = remaining - assigned_extra;
+    if (leftover > 0)
     {
         std::vector<int> idx(n_blocks);
         for (int i = 0; i < n_blocks; ++i) idx[i] = i;
-        const int top_k = std::min(leftover, n_blocks);
 
-        std::ranges::partial_sort(idx, idx.begin() + top_k,
+        std::ranges::sort(idx,
         [this](const int a, const int b)
         {
             return variance[a] > variance[b];
         });
 
-        for (int i = 0; i < top_k; ++i) ++allocated[idx[i]];
+        // leftover sample
+        int i = 0;
+        while (leftover > 0)
+        {
+            ++allocated[idx[i % n_blocks]];
+            ++i;
+            --leftover;
+        }
     }
 }
 
