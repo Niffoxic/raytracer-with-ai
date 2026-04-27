@@ -58,6 +58,7 @@ void fox_tracer::camera::init(
         // fov_deg = 2.0f * std::atan2(1.0f, t) * (180.0f / math::pi<float>);
         fov_deg = 2.0f * std::atan(1.0f / t) * (180.0f / math::pi<float>);
     }
+    world_to_clip = projection_matrix;
     flip_x = (projection.a[0][0] < 0.0f);
 }
 
@@ -72,6 +73,7 @@ void fox_tracer::camera::update_view(const matrix &V)
     // view_direction = inverse_projection_matrix
     //                     .mul_point_and_perspective_divide(vec3(0,0,1));
     // view_direction = camera_to_world.mul_vec(view_direction).normalize();
+    world_to_clip = projection_matrix * camera_to_view;
     update_basis_cache();
 }
 
@@ -122,6 +124,7 @@ void fox_tracer::camera::apply_intrinsics(const float new_fov_deg) noexcept
 
     a_film  = std::fabs(w_lens * h_lens);
     fov_deg = clamped_fov;
+    world_to_clip = projection_matrix * camera_to_view;
     update_basis_cache();
 }
 
@@ -183,7 +186,8 @@ bool fox_tracer::camera::project_onto_camera(const vec3 &p, float &x, float &y) 
     const vec3 pview = camera_to_view.mul_point(p);
     if (pview.z >= 0.0f) return false;
 
-    const vec3 pclip = projection_matrix.mul_point_and_perspective_divide(pview);
+    //const vec3 pclip = projection_matrix.mul_point_and_perspective_divide(pview);
+    const vec3 pclip = world_to_clip.mul_point_and_perspective_divide(p);
 
     // x = (pclip.x + 1.0f) * 0.5f;
     // y = (pclip.y + 1.0f) * 0.5f;

@@ -239,7 +239,7 @@ namespace fox_tracer::ui
 
     void image_gallery::view(std::uint64_t id,
                              GamesEngineeringBase::Window* canvas,
-                             ray_tracer* rt)
+                             render::ray_tracer* rt)
     {
         if (id == 0)
         {
@@ -282,7 +282,7 @@ namespace fox_tracer::ui
 
     void image_gallery::draw_ui(bool& show,
                                 GamesEngineeringBase::Window* canvas,
-                                ray_tracer* rt,
+                                render::ray_tracer* rt,
                                 const header_fn& header)
     {
         if (!show) return;

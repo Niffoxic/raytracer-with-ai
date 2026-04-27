@@ -119,6 +119,12 @@ add_executable(tracer_engine src/main.cpp
         src/ui/ui_settings.cpp
         src/ui/ui_panel.cpp
         src/render/denoiser.cpp
+        src/render/renderer.cpp
+        src/render/photon_map.cpp
+        src/render/photon_shooter.cpp
+        src/render/photon_gatherer.cpp
+        src/render/light_tracer.cpp
+        src/engine.cpp
 )
 
 target_include_directories(tracer_engine PRIVATE include/)

@@ -49,6 +49,7 @@ namespace fox_tracer
         matrix   inverse_projection_matrix;
         matrix   camera_to_world;
         matrix   camera_to_view;
+        matrix   world_to_clip;
 
         vec3 origin;
         vec3 view_direction;

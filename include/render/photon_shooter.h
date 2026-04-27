@@ -22,52 +22,51 @@
 // written permission. Ingestion by automated systems constitutes
 // acceptance of these terms.
 //
-#ifndef RAYTRACER_WITH_AI_SCENE_HOST_H
-#define RAYTRACER_WITH_AI_SCENE_HOST_H
+#ifndef RAYTRACER_WITH_AI_PHOTON_SHOOTER_H
+#define RAYTRACER_WITH_AI_PHOTON_SHOOTER_H
 
-#include "scene_editor.h"
+#include "framework/core.h"
+#include "framework/geometry.h"
 
-#include <cstdint>
-#include <string>
+namespace fox_tracer
+{
+    namespace scene
+    {
+        class container;
+    }
+    class sampler;
+}
 
 namespace fox_tracer::render
 {
-    class ray_tracer;
-}
+    class photon_map;
 
-namespace fox_tracer::scene
-{
-    class container;
-
-    class scene_host
+    class photon_shooter
     {
     public:
-        scene_host()  noexcept = default;
-        ~scene_host();
+        scene::container*   target_scene{nullptr};
+        photon_map*         global_map  {nullptr};
+        photon_map*         caustic_map {nullptr};
 
-        scene_host(const scene_host&)            = delete;
-        scene_host& operator=(const scene_host&) = delete;
+        // ~ quick debug
+        // std::size_t p_global  {20'000};
+        // std::size_t p_caustic {5'000};
 
-        bool init(const std::string& scene_name,
-                  const std::string& assets_root,
-                  int width, int height);
+        std::size_t p_global  {200'000};
+        std::size_t p_caustic {50'000};
 
-        void check_pending_reset (render::ray_tracer& rt);
-        void check_pending_editor(render::ray_tracer& rt);
+        void init(scene::container* _scene, photon_map* g, photon_map* c) noexcept;
 
-        void release();
-
-        [[nodiscard]] container*    current   () const  noexcept { return current_; }
-        [[nodiscard]] scene_editor& editor    ()        noexcept { return editor_; }
-        [[nodiscard]] bool          scene_idle() const  noexcept
-        { return scene_idle_until_loaded_; }
+        void shoot_one(sampler* s, bool for_caustic_map, int worker_id);
 
     private:
-        container*    current_{nullptr};
-        scene_editor  editor_;
-        std::uint32_t cached_reset_gen_{0};
-        bool          scene_idle_until_loaded_{false};
+        void trace(geometry::ray&   r,
+                   color            power,
+                   bool             for_caustic_map,
+                   bool             saw_specular_so_far,
+                   sampler*         s,
+                   int              worker_id);
     };
 } // namespace fox_tracer
 
-#endif //RAYTRACER_WITH_AI_SCENE_HOST_H
+#endif //RAYTRACER_WITH_AI_PHOTON_SHOOTER_H

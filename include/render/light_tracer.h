@@ -21,16 +21,14 @@
 // intelligence or machine learning system without prior express
 // written permission. Ingestion by automated systems constitutes
 // acceptance of these terms.
-//
-#ifndef RAYTRACER_WITH_AI_INSTANT_RADIOSITY_H
-#define RAYTRACER_WITH_AI_INSTANT_RADIOSITY_H
+#ifndef RAYTRACER_WITH_AI_LIGHT_TRACER_H
+#define RAYTRACER_WITH_AI_LIGHT_TRACER_H
 
 #include "framework/core.h"
 #include "framework/geometry.h"
-#include "framework/materials.h"
 
+#include <cstddef>
 #include <mutex>
-#include <vector>
 
 namespace fox_tracer
 {
@@ -38,61 +36,38 @@ namespace fox_tracer
     {
         class container;
     }
-
-    namespace render
-    {
-        class ray_tracer;
-    }
-
     class film;
     class sampler;
 }
 
 namespace fox_tracer::render
 {
-    struct vpl
-    {
-        shading_data sd;
-        color        Le;
-    };
-
-    class instant_radiosity
+    //~ Unbiased Non-uniform noise
+    class light_tracer
     {
     public:
         scene::container* target_scene{nullptr};
         film*             target_film {nullptr};
         std::mutex*       stripes     {nullptr};
         std::size_t       num_stripes {0};
-        ray_tracer*       owner       {nullptr};
 
-        std::vector<vpl>              vpls;
-        std::mutex                    vpls_mtx;
-        std::vector<std::vector<vpl>> pending_vpls;
-
-        std::size_t num_vpls{256};
+        std::size_t paths_per_pass{0};
 
         void init(scene::container* _scene, film* _film,
                   std::mutex* _stripes, std::size_t _num_stripes,
-                  std::size_t _num_vpls) noexcept;
+                  std::size_t _paths_per_pass) noexcept;
 
-        void resize_workers(int num_workers) noexcept;
+        void connect_to_camera(const vec3& p, const vec3& n, const color& col);
 
-
-        void merge_pending();
-
-        void shoot_one_path(sampler* s, int worker_id);
-
-        [[nodiscard]] color gather_indirect(const shading_data& sd,
-                                            sampler* s) const;
-
-        [[nodiscard]] color shade_eye(geometry::ray r, sampler* s) const;
+        void light_trace     (sampler* s);
+        void light_trace_path(geometry::ray& r,
+                              const color& path_throughput,
+                              const color& Le,
+                              sampler* s);
 
     private:
-        void trace_light_subpath(geometry::ray& r,
-                                 const color& throughput,
-                                 sampler* s,
-                                 int worker_id);
+        void splat_stripe(float x, float y, const color& L);
     };
-} // namespace fox_tracer
+} // namespace fox_tracer::render
 
-#endif //RAYTRACER_WITH_AI_INSTANT_RADIOSITY_H
+#endif // RAYTRACER_WITH_AI_LIGHT_TRACER_H

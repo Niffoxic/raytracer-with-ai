@@ -208,6 +208,8 @@ namespace fox_tracer
         private:
             std::unique_ptr<filter_sampler> sampler_;
         };
+
+        std::unique_ptr<image_filter> filter_factory(int kind);
     }
 
     struct tonemap_params
@@ -255,7 +257,7 @@ namespace fox_tracer
         void splat_importance(color* buf, int buf_w, int buf_h,
                               int buf_x0, int buf_y0,
                               float x, float y, const color& L,
-                              float u1, float u2) const;
+                              float u1, float u2);
 
         void tonemap(int x, int y,
                      unsigned char& r, unsigned char& g, unsigned char& b,

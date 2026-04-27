@@ -79,7 +79,7 @@ namespace fox_tracer::scene
         return true;
     }
 
-    void scene_host::check_pending_reset(ray_tracer& rt)
+    void scene_host::check_pending_reset(render::ray_tracer& rt)
     {
         const std::uint32_t gen =
             config().reset_generation.load(std::memory_order_acquire);
@@ -90,7 +90,7 @@ namespace fox_tracer::scene
         }
     }
 
-    void scene_host::check_pending_editor(ray_tracer& rt)
+    void scene_host::check_pending_editor(render::ray_tracer& rt)
     {
         if (!editor_.pending_load && !editor_.pending_rebuild) return;
 

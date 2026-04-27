@@ -22,52 +22,55 @@
 // written permission. Ingestion by automated systems constitutes
 // acceptance of these terms.
 //
-#ifndef RAYTRACER_WITH_AI_SCENE_HOST_H
-#define RAYTRACER_WITH_AI_SCENE_HOST_H
+#ifndef RAYTRACER_WITH_AI_PHOTON_MAP_H
+#define RAYTRACER_WITH_AI_PHOTON_MAP_H
 
-#include "scene_editor.h"
+#include "framework/core.h"
 
+#include <cstddef>
 #include <cstdint>
-#include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace fox_tracer::render
 {
-    class ray_tracer;
-}
+    struct photon
+    {
+        vec3  position;
+        vec3  wi;
+        color power;
+        vec3  s_normal;
+    };
 
-namespace fox_tracer::scene
-{
-    class container;
-
-    class scene_host
+    class photon_map
     {
     public:
-        scene_host()  noexcept = default;
-        ~scene_host();
+        float cell_size{0.05f};
 
-        scene_host(const scene_host&)            = delete;
-        scene_host& operator=(const scene_host&) = delete;
+        void init           (float _cell_size) noexcept;
+        void resize_workers (int num_workers) noexcept;
+        void add            (const photon& p,
+                            int worker_id);
 
-        bool init(const std::string& scene_name,
-                  const std::string& assets_root,
-                  int width, int height);
+        void merge_pending();
 
-        void check_pending_reset (render::ray_tracer& rt);
-        void check_pending_editor(render::ray_tracer& rt);
+        void knn(const vec3& x, int k, float r_max,
+                 std::vector<const photon*>& out, float& r_out) const;
 
-        void release();
-
-        [[nodiscard]] container*    current   () const  noexcept { return current_; }
-        [[nodiscard]] scene_editor& editor    ()        noexcept { return editor_; }
-        [[nodiscard]] bool          scene_idle() const  noexcept
-        { return scene_idle_until_loaded_; }
+        void clear() noexcept;
+        [[nodiscard]] std::size_t size() const noexcept;
 
     private:
-        container*    current_{nullptr};
-        scene_editor  editor_;
-        std::uint32_t cached_reset_gen_{0};
-        bool          scene_idle_until_loaded_{false};
+        using grid_key = std::uint64_t;
+
+        [[nodiscard]] grid_key key_for(const vec3& p) const noexcept;
+        [[nodiscard]] static grid_key pack(int ix, int iy, int iz) noexcept;
+
+        std::unordered_map<grid_key, std::vector<photon>> grid_;
+        std::size_t        count_{0};
+
+        std::vector<std::vector<photon>> pending_;
     };
 } // namespace fox_tracer
 
-#endif //RAYTRACER_WITH_AI_SCENE_HOST_H
+#endif //RAYTRACER_WITH_AI_PHOTON_MAP_H

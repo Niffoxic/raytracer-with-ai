@@ -305,7 +305,7 @@ namespace fox_tracer::ui
         }
 
         {
-            const int   spp     = render::ctx.rt->get_spp();
+            const int   spp     = ctx.rt->get_spp();
             const int   tgt     = std::max(1, config().target_spp.load(
                                        std::memory_order_relaxed));
             const float frac    = std::clamp(static_cast<float>(spp)

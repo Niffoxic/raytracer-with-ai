@@ -77,6 +77,8 @@ namespace fox_tracer
             virtual float pdf       (const shading_data& sd, const vec3& wi) = 0;
             virtual float mask      (const shading_data& sd) = 0;
 
+            [[nodiscard]] virtual color albedo_color(const shading_data& sd) const = 0;
+
             [[nodiscard]] virtual bool is_pure_specular () const = 0;
             [[nodiscard]] virtual bool is_two_sided     () const = 0;
 
@@ -102,6 +104,8 @@ namespace fox_tracer
             float pdf       (const shading_data& sd, const vec3& wi) override;
             float mask      (const shading_data& sd)                 override;
 
+            [[nodiscard]] color albedo_color(const shading_data& sd) const override;
+
             [[nodiscard]] bool is_pure_specular () const override;
             [[nodiscard]] bool is_two_sided     () const override;
         };
@@ -120,6 +124,8 @@ namespace fox_tracer
             color evaluate  (const shading_data& sd, const vec3& wi) override;
             float pdf       (const shading_data& sd, const vec3& wi) override;
             float mask      (const shading_data& sd)                 override;
+
+            [[nodiscard]] color albedo_color(const shading_data& sd) const override;
 
             [[nodiscard]] bool is_pure_specular () const override;
             [[nodiscard]] bool is_two_sided     () const override;
@@ -144,6 +150,8 @@ namespace fox_tracer
             float pdf       (const shading_data& sd, const vec3& wi) override;
             float mask      (const shading_data& sd)                 override;
 
+            [[nodiscard]] color albedo_color(const shading_data& sd) const override;
+
             [[nodiscard]] bool is_pure_specular () const override;
             [[nodiscard]] bool is_two_sided     () const override;
         };
@@ -164,6 +172,8 @@ namespace fox_tracer
             color evaluate  (const shading_data& sd, const vec3& wi) override;
             float pdf       (const shading_data& sd, const vec3& wi) override;
             float mask      (const shading_data& sd)                 override;
+
+            [[nodiscard]] color albedo_color(const shading_data& sd) const override;
 
             [[nodiscard]] bool is_pure_specular () const override;
             [[nodiscard]] bool is_two_sided     () const override;
@@ -188,6 +198,8 @@ namespace fox_tracer
             float pdf       (const shading_data& sd, const vec3& wi) override;
             float mask      (const shading_data& sd)                 override;
 
+            [[nodiscard]] color albedo_color(const shading_data& sd) const override;
+
             [[nodiscard]] bool is_pure_specular () const override;
             [[nodiscard]] bool is_two_sided     () const override;
         };
@@ -207,6 +219,8 @@ namespace fox_tracer
             color evaluate  (const shading_data& sd, const vec3& wi) override;
             float pdf       (const shading_data& sd, const vec3& wi) override;
             float mask      (const shading_data& sd)                 override;
+
+            [[nodiscard]] color albedo_color(const shading_data& sd) const override;
 
             [[nodiscard]] bool is_pure_specular () const override;
             [[nodiscard]] bool is_two_sided     () const override;
@@ -233,6 +247,8 @@ namespace fox_tracer
             float pdf       (const shading_data& sd, const vec3& wi) override;
             float mask      (const shading_data& sd)                 override;
 
+            [[nodiscard]] color albedo_color(const shading_data& sd) const override;
+
             [[nodiscard]] bool is_pure_specular () const override;
             [[nodiscard]] bool is_two_sided     () const override;
         };
@@ -256,6 +272,8 @@ namespace fox_tracer
             color evaluate  (const shading_data& sd, const vec3& wi) override;
             float pdf       (const shading_data& sd, const vec3& wi) override;
             float mask      (const shading_data& sd)                 override;
+
+            [[nodiscard]] color albedo_color(const shading_data& sd) const override;
 
             [[nodiscard]] bool is_pure_specular() const override;
             [[nodiscard]] bool is_two_sided    () const override;

@@ -143,6 +143,46 @@ float fox_tracer::bsdf::diffuse::mask(const shading_data &sd)
     return albedo->sample_alpha(sd.tu, sd.tv);
 }
 
+fox_tracer::color fox_tracer::bsdf::diffuse::albedo_color(const shading_data &sd) const
+{
+    return albedo->sample(sd.tu, sd.tv);
+}
+
+fox_tracer::color fox_tracer::bsdf::mirror::albedo_color(const shading_data &sd) const
+{
+    return albedo->sample(sd.tu, sd.tv);
+}
+
+fox_tracer::color fox_tracer::bsdf::conductor::albedo_color(const shading_data &sd) const
+{
+    return albedo->sample(sd.tu, sd.tv);
+}
+
+fox_tracer::color fox_tracer::bsdf::glass::albedo_color(const shading_data &sd) const
+{
+    return albedo->sample(sd.tu, sd.tv);
+}
+
+fox_tracer::color fox_tracer::bsdf::dielectric::albedo_color(const shading_data &sd) const
+{
+    return albedo->sample(sd.tu, sd.tv);
+}
+
+fox_tracer::color fox_tracer::bsdf::oren_nayar::albedo_color(const shading_data &sd) const
+{
+    return albedo->sample(sd.tu, sd.tv);
+}
+
+fox_tracer::color fox_tracer::bsdf::plastic::albedo_color(const shading_data &sd) const
+{
+    return albedo->sample(sd.tu, sd.tv);
+}
+
+fox_tracer::color fox_tracer::bsdf::layered::albedo_color(const shading_data &sd) const
+{
+    return substrate->albedo_color(sd);
+}
+
 bool fox_tracer::bsdf::diffuse::is_pure_specular() const
 {
     return false;

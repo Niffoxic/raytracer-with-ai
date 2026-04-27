@@ -32,7 +32,7 @@
 
 namespace GamesEngineeringBase { class Window; }
 
-namespace fox_tracer
+namespace fox_tracer::render
 {
     class ray_tracer;
 }
@@ -93,14 +93,14 @@ namespace fox_tracer::ui
         }
 
         void view(std::uint64_t id, GamesEngineeringBase::Window* canvas,
-                  ray_tracer* rt);
+                  render::ray_tracer* rt);
 
         void refresh_canvas_if_viewing(GamesEngineeringBase::Window* canvas);
 
         using header_fn = std::function<void()>;
         void draw_ui(bool& show,
                      GamesEngineeringBase::Window* canvas,
-                     ray_tracer* rt,
+                     render::ray_tracer* rt,
                      const header_fn& header = {});
 
         void rename(std::uint64_t id, std::string new_label);

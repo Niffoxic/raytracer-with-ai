@@ -32,6 +32,12 @@
 #include <cmath>
 #include <utility>
 
+#include "config.h"
+
+namespace fox_tracer {
+    enum class pixel_filter_kind;
+}
+
 fox_tracer::texture::~texture()
 {
     delete[] texels;
@@ -576,6 +582,43 @@ int fox_tracer::filter::lanczos_sinc_filter::size() const
                     static_cast<int>(std::ceil(radius_xy.y)));
 }
 
+std::unique_ptr<fox_tracer::filter::image_filter> fox_tracer::filter::filter_factory(int kind)
+{
+    switch (static_cast<pixel_filter_kind>(kind))
+    {
+    case pixel_filter_kind::box:
+        return std::make_unique<filter::box_filter>(
+            std::max(0.05f, config().box_radius_x.load(std::memory_order_relaxed)),
+            std::max(0.05f, config().box_radius_y.load(std::memory_order_relaxed))
+        );
+    case pixel_filter_kind::gaussian:
+        return std::make_unique<filter::gaussian_filter>(
+            std::max(0.25f, config().gaussian_radius_x.load(std::memory_order_relaxed)),
+            std::max(0.25f, config().gaussian_radius_y.load(std::memory_order_relaxed)),
+            std::max(0.1f,  config().gaussian_alpha .load(std::memory_order_relaxed))
+        );
+    case pixel_filter_kind::triangle:
+        return std::make_unique<filter::triangle_filter>(
+            std::max(0.25f, config().triangle_radius_x.load(std::memory_order_relaxed)),
+            std::max(0.25f, config().triangle_radius_y.load(std::memory_order_relaxed))
+        );
+    case pixel_filter_kind::lanczos_sinc:
+        return std::make_unique<filter::lanczos_sinc_filter>(
+            std::max(0.25f, config().lanczos_radius_x.load(std::memory_order_relaxed)),
+            std::max(0.25f, config().lanczos_radius_y.load(std::memory_order_relaxed)),
+            std::max(1.0f,  config().lanczos_tau    .load(std::memory_order_relaxed))
+        );
+    case pixel_filter_kind::mitchell:
+    default:
+        return std::make_unique<filter::mitchell_netravali_filter>(
+            config().mitchell_b.load(std::memory_order_relaxed),
+            config().mitchell_c.load(std::memory_order_relaxed),
+            std::max(0.25f, config().mitchell_radius_x.load(std::memory_order_relaxed)),
+            std::max(0.25f, config().mitchell_radius_y.load(std::memory_order_relaxed))
+        );
+    }
+}
+
 // TODO: look at some famous tonemap from some games and create an enum for selecting any of them runtime
 namespace
 {
@@ -768,7 +811,7 @@ void fox_tracer::film::splat_into(
 void fox_tracer::film::splat_importance(
     color *buf, const int buf_w, const int buf_h,
     const int buf_x0, const int buf_y0, float x, const float y,
-    const color &L, const float u1, const float u2) const
+    const color &L, const float u1, const float u2)
 {
     if (filter == nullptr) return;
 
