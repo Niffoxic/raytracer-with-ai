@@ -135,7 +135,8 @@ namespace fox_tracer::render
             // bsdf_w = bsdf_w * (1.0f / rr);
 
             geometry::ray r2;
-            r2.init(sd.x + wi * math::epsilon<float>, wi);
+            // r2.init(sd.x + wi * math::epsilon<float>, wi);
+            r2.init(math::offset_ray_origin(sd.x, sd.g_normal, wi), wi);
             const accelerated_structure::intersection_data hit = target_scene->traverse(r2);
             if (hit.t >= FLT_MAX) continue;
 

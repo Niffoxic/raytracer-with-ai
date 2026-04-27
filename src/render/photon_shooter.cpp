@@ -96,7 +96,8 @@ namespace fox_tracer::render
 
         // walk the scene
         geometry::ray r;
-        r.init(p + wi * math::epsilon<float>, wi);
+        // r.init(p + wi * math::epsilon<float>, wi);
+        r.init(math::offset_ray_origin(p, n_light, wi), wi);
         trace(r, power,
             for_caustic_map,
             false, s,
@@ -180,7 +181,8 @@ namespace fox_tracer::render
             //~ MUST be set after the diffuse-store (i gotta do something about this one later)
             if (specular_here) saw_specular_so_far = true;
 
-            r.init(sd.x + wi_next * math::epsilon<float>, wi_next);
+            // r.init(sd.x + wi_next * math::epsilon<float>, wi_next);
+            r.init(math::offset_ray_origin(sd.x, sd.g_normal, wi_next), wi_next);
         }
     }
 } // namespace fox_tracer

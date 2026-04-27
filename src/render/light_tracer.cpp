@@ -181,7 +181,9 @@ namespace fox_tracer::render
         float img_x, img_y;
         if (!cam.project_onto_camera(p, img_x, img_y)) return;
 
-        if (!target_scene->visible(p, cam.origin)) return;
+        //if (!target_scene->visible(p, cam.origin)) return;
+        if (!target_scene->visible(p, n, cam.origin, vec3(0.0f, 0.0f, 0.0f)))
+            return;
 
         const float G = cos_surface * cos_cam / d2;
         // const float G = cos_surface * cos_cam;
@@ -238,7 +240,7 @@ namespace fox_tracer::render
                                cos_theta_wi * inv_emit_pdf);
 
         geometry::ray r;
-        r.init(p + wi * math::epsilon<float>, wi);
+        r.init(math::offset_ray_origin(p, n_light, wi), wi);
         light_trace_path(r, throughput, Le, s);
     }
 
@@ -314,7 +316,7 @@ namespace fox_tracer::render
             throughput = throughput * bsdf_weight * (cos_theta * corr / pdf_bsdf);
             if (throughput.luminance() <= 0.0f) return;
 
-            r.init(sd.x + wi_next * math::epsilon<float>, wi_next);
+            r.init(math::offset_ray_origin(sd.x, sd.g_normal, wi_next), wi_next);
         }
     }
 } // namespace fox_tracer

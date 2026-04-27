@@ -199,11 +199,11 @@ namespace fox_tracer::render
                         const int tile_id = tile_order[idx];
                         const int tx = tile_id % tiles_x;
                         const int ty = tile_id / tiles_x;
-                        const unsigned int x_start = static_cast<unsigned int>(tx * tile_size);
-                        const unsigned int y_start = static_cast<unsigned int>(ty * tile_size);
-                        const unsigned int x_end   = std::min<unsigned int>(x_start + tile_size,
+                        const auto x_start = static_cast<unsigned int>(tx * tile_size);
+                        const auto y_start = static_cast<unsigned int>(ty * tile_size);
+                        const auto x_end   = std::min<unsigned int>(x_start + tile_size,
                                                                             render_film->width);
-                        const unsigned int y_end   = std::min<unsigned int>(y_start + tile_size,
+                        const auto y_end   = std::min<unsigned int>(y_start + tile_size,
                                                                             render_film->height);
 
                         switch (static_cast<pool_phase>(phase))
@@ -666,58 +666,57 @@ namespace fox_tracer::render
     {
         if (config().override_background.load(std::memory_order_relaxed))
         {
-            return color(
+            return {
                 config().bg_r.load(std::memory_order_relaxed),
                 config().bg_g.load(std::memory_order_relaxed),
-                config().bg_b.load(std::memory_order_relaxed));
+                config().bg_b.load(std::memory_order_relaxed)};
         }
         return target_scene->background->evaluate(r.dir);
     }
 
     color ray_tracer::compute_direct(const shading_data& sd, sampler* s, bool use_mis)
     {
-        if (sd.surface_bsdf->is_pure_specular())
+      if (sd.surface_bsdf->is_pure_specular())
         {
             return color(0.0f, 0.0f, 0.0f);
         }
 
         float light_pmf;
         lights::base* L_src = target_scene->sample_light(s, light_pmf);
-        if (L_src == nullptr || light_pmf <= 0.0f) return color(0.0f, 0.0f, 0.0f);
+        if (L_src == nullptr || light_pmf <= 0.0f) return {0.0f, 0.0f, 0.0f};
 
         color Le;
         float light_pdf;
         vec3 p = L_src->sample(sd, s, Le, light_pdf);
 
         if (light_pdf <= 0.0f || Le.luminance() <= 0.0f)
-            return color(0.0f, 0.0f, 0.0f);
+            return {0.0f, 0.0f, 0.0f};
 
         if (L_src->is_area())
         {
             vec3 wi = p - sd.x;
             const float dist2 = wi.length_squared();
-            // const float dist  = std::sqrt(dist2);
-            // if (dist <= 0.0f) return color(0.0f, 0.0f, 0.0f);
-            // wi = wi / dist;
 
-            if (dist2 <= 0.0f) return color(0.0f, 0.0f, 0.0f);
+            if (dist2 <= 0.0f)
+                return {0.0f, 0.0f, 0.0f};
+
             const float inv_dist = 1.0f / std::sqrt(dist2);
             const float dist     = dist2 * inv_dist;
             wi = wi * inv_dist;
 
+            const vec3 n_light = L_src->normal(sd, wi);
             const float cos_surface = math::dot(wi, sd.s_normal);
-            const float cos_light   = -math::dot(wi, L_src->normal(sd, wi));
+            const float cos_light   = -math::dot(wi, n_light);
 
             if (cos_surface <= 0.0f || cos_light <= 0.0f)
                 return color(0.0f, 0.0f, 0.0f);
 
-            if (!target_scene->visible(sd.x, p))
+            if (!target_scene->visible(sd.x, sd.g_normal, p, n_light))
                 return color(0.0f, 0.0f, 0.0f);
 
             const color f       = sd.surface_bsdf->evaluate(sd, wi);
             const float pdf_dir = light_pdf * light_pmf * (dist2 / cos_light);
             float w = 1.0f;
-
             if (use_mis)
             {
                 const float bsdf_pdf = sd.surface_bsdf->pdf(sd, wi);
@@ -731,10 +730,12 @@ namespace fox_tracer::render
         if (cos_surface <= 0.0f) return color(0.0f, 0.0f, 0.0f);
 
         geometry::ray shadow;
-        shadow.init(sd.x + wi * math::epsilon<float>, wi);
+        shadow.init(math::offset_ray_origin(sd.x, sd.g_normal, wi), wi);
         const accelerated_structure::intersection_data sh =
             target_scene->traverse(shadow);
-        if (sh.t < FLT_MAX) return color(0.0f, 0.0f, 0.0f);
+
+        if (sh.t < FLT_MAX)
+            return color(0.0f, 0.0f, 0.0f);
 
         const color f       = sd.surface_bsdf->evaluate(sd, wi);
         const float pdf_dir = light_pdf * light_pmf;
@@ -748,7 +749,8 @@ namespace fox_tracer::render
 
     }
 
-    color ray_tracer::path_trace(geometry::ray r, sampler* s)
+    fox_tracer::color fox_tracer::render::ray_tracer::path_trace(
+        geometry::ray r, sampler* s)
     {
         color L(0.0f, 0.0f, 0.0f);
         color path_throughput(1.0f, 1.0f, 1.0f);
@@ -779,11 +781,9 @@ namespace fox_tracer::render
             {
                 return color(0.0f, 0.0f, 0.0f);
             }
-
             if (max_L <= 0.0f) return c;
             const float lum = c.luminance();
             if (lum > max_L) c = c * (max_L / lum);
-
             return c;
         };
 
@@ -848,8 +848,8 @@ namespace fox_tracer::render
             if (use_rr && depth >= rr_depth)
             {
                 const float rr = std::min(0.95f,
-                std::max(path_throughput.red,
-                std::max(path_throughput.green, path_throughput.blue)));
+                    std::max(path_throughput.red,
+                    std::max(path_throughput.green, path_throughput.blue)));
 
                 if (rr <= 0.0f) return L;
                 if (s->next() > rr) return L;
@@ -880,7 +880,7 @@ namespace fox_tracer::render
             prev_bsdf_pdf = pdf;
             prev_specular = sd.surface_bsdf->is_pure_specular();
 
-            r.init(sd.x + wi * math::epsilon<float>, wi);
+            r.init(math::offset_ray_origin(sd.x, sd.g_normal, wi), wi);
         }
         return L;
     }

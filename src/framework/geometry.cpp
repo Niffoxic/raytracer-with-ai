@@ -164,8 +164,10 @@ fox_tracer::vec3 fox_tracer::geometry::triangle::sample(sampler *s, float &pdf) 
 
 fox_tracer::vec3 fox_tracer::geometry::triangle::g_normal() const noexcept
 {
-    return (n * (math::dot(vertices[0].normal, n) > 0.0f ? 1.0f : -1.0f));
-
+    const vec3 avg = vertices[0].normal
+                   + vertices[1].normal
+                   + vertices[2].normal;
+    return (math::dot(avg, n) > 0.0f) ? n : -n;
 }
 
 fox_tracer::geometry::aabb::aabb() noexcept

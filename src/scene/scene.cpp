@@ -414,18 +414,32 @@ fox_tracer::lights::base * fox_tracer::scene::container::sample_light(
 
 bool fox_tracer::scene::container::visible(const vec3 &p1, const vec3 &p2) const
 {
-    geometry::ray r;
+    return visible(p1, vec3(0.0f, 0.0f, 0.0f), p2, vec3(0.0f, 0.0f, 0.0f));
+}
+
+bool fox_tracer::scene::container::visible(
+    const vec3 &p1, const vec3 &g_n1,
+    const vec3 &p2, const vec3 &g_n2) const
+{
     vec3 dir = p2 - p1;
-    const float max_t = dir.length() - (2.0f * math::epsilon<float>);
-    dir = dir.normalize();
-    r.init(p1 + (dir * math::epsilon<float>), dir);
+    const float dist = dir.length();
+    if (dist <= 0.0f) return true;
+    dir = dir / dist;
+
+    const vec3 o1 = math::offset_ray_origin(p1, g_n1,  dir);
+    const vec3 o2 = math::offset_ray_origin(p2, g_n2, -dir);
+
+    geometry::ray r;
+    r.init(o1, dir);
+
+    const float max_t = (o2 - o1).length() - math::epsilon<float>;
+    if (max_t <= 0.0f) return true;
 
     if (config().use_bvh.load(std::memory_order_relaxed) && bvh != nullptr)
     {
         return bvh->traverse_visible(r, triangles, max_t);
     }
-
-    for (const auto & triangle : triangles)
+    for (const auto& triangle : triangles)
     {
         float t, u, v;
         if (triangle.ray_intersect(r, t, u, v) && t < max_t)

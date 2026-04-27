@@ -173,7 +173,7 @@ namespace fox_tracer::render
         const color throughput = Le * (cos_theta_wi * inv_emit_pdf);
 
         geometry::ray r;
-        r.init(p + wi * math::epsilon<float>, wi);
+        r.init(math::offset_ray_origin(p, n_light, wi), wi);
         trace_light_subpath(r, throughput, s, worker_id);
     }
 
@@ -258,7 +258,7 @@ namespace fox_tracer::render
             throughput = throughput * bsdf_weight * (cos_theta / pdf_bsdf);
             if (throughput.luminance() <= 0.0f) return;
 
-            r.init(sd.x + wi_next * math::epsilon<float>, wi_next);
+            r.init(math::offset_ray_origin(sd.x, sd.g_normal, wi_next), wi_next);
         }
     }
 
@@ -266,16 +266,16 @@ namespace fox_tracer::render
                                              sampler* s) const
     {
         if (target_scene == nullptr)
-            return color(0.0f, 0.0f, 0.0f);
+            return {0.0f, 0.0f, 0.0f};
 
         if (sd.surface_bsdf == nullptr)
-            return color(0.0f, 0.0f, 0.0f);
+            return {0.0f, 0.0f, 0.0f};
 
         if (sd.surface_bsdf->is_pure_specular())
-            return color(0.0f, 0.0f, 0.0f);
+            return {0.0f, 0.0f, 0.0f};
 
         if (vpls.empty())
-            return color(0.0f, 0.0f, 0.0f);
+            return {0.0f, 0.0f, 0.0f};
 
         const float min_dist_sq = std::max(1e-8f,
             config().ir_min_dist_sq.load(std::memory_order_relaxed));
@@ -293,21 +293,15 @@ namespace fox_tracer::render
             const float d2 = w.length_squared();
             if (d2 <= math::squared(math::epsilon<float>)) continue;
 
-            // const float d = std::sqrt(d2);
-            // w = w / d;
-            // const float inv_d = 1.0f / std::sqrt(d2);
             const float inv_d = _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(d2)));
             w = w * inv_d;
 
-            const float cos_x = std::max(0.0f,
-                math::dot(w, sd.s_normal));
-            const float cos_y = std::max(0.0f,
-                math::dot(-w, y.sd.s_normal));
+            const float cos_x = std::max(0.0f, math::dot( w, sd.s_normal));
+            const float cos_y = std::max(0.0f, math::dot(-w, y.sd.s_normal));
             if (cos_x <= 0.0f || cos_y <= 0.0f) continue;
 
-
-            if (!target_scene->visible(sd.x, y.sd.x)) continue;
-            // if (cos_x <= 0.0f || cos_y <= 0.0f) continue;
+            if (!target_scene->visible(sd.x,   sd.g_normal,
+                                       y.sd.x, y.sd.g_normal)) continue;
 
             const float r2c = std::max(d2, min_dist_sq);
             const float G   = (cos_x * cos_y) / r2c;
@@ -326,7 +320,8 @@ namespace fox_tracer::render
 
     color instant_radiosity::shade_eye(geometry::ray r, sampler* s) const
     {
-        if (target_scene == nullptr) return color(0.0f, 0.0f, 0.0f);
+        if (target_scene == nullptr)
+            return {0.0f, 0.0f, 0.0f};
 
         const int max_depth = std::max(1, config().max_depth.load(std::memory_order_relaxed));
 
@@ -338,11 +333,11 @@ namespace fox_tracer::render
         auto firefly = [](color c, float max_L) -> color
         {
             if (!std::isfinite(c.red) || !std::isfinite(c.green) || !std::isfinite(c.blue))
-                return color(0.0f, 0.0f, 0.0f);
-            if (max_L <= 0.0f) return c;
-            //     return color(std::min(c.red,   max_L),
-            //                  std::min(c.green, max_L),
-            //                  std::min(c.blue,  max_L));
+                return {0.0f, 0.0f, 0.0f};
+
+            if (max_L <= 0.0f)
+                return c;
+
             const float lum = c.luminance();
             if (lum > max_L) c = c * (max_L / lum);
             return c;
@@ -358,9 +353,7 @@ namespace fox_tracer::render
             if (sd.t >= FLT_MAX)
             {
                 if (owner != nullptr)
-                {
                     return throughput * owner->evaluate_background(r);
-                }
                 if (config().override_background.load(std::memory_order_relaxed))
                 {
                     const color bg(
@@ -370,27 +363,22 @@ namespace fox_tracer::render
                     return throughput * bg;
                 }
                 if (target_scene->background != nullptr)
-                {
                     return throughput * target_scene->background->evaluate(r.dir);
-                }
-                return color(0.0f, 0.0f, 0.0f);
+                return {0.0f, 0.0f, 0.0f};
             }
 
             if (sd.surface_bsdf == nullptr)
-                return color(0.0f, 0.0f, 0.0f);
+                return {0.0f, 0.0f, 0.0f};
 
             if (sd.surface_bsdf->is_light())
-            {
                 return throughput * sd.surface_bsdf->emit(sd, sd.wo);
-            }
 
             if (!sd.surface_bsdf->is_pure_specular())
             {
                 color L_direct(0.0f, 0.0f, 0.0f);
                 if (owner != nullptr)
-                {
                     L_direct = owner->compute_direct(sd, s);
-                }
+
                 color L_indirect = gather_indirect(sd, s);
                 L_direct   = firefly(L_direct,   firefly_max_direct_L);
                 L_indirect = firefly(L_indirect, firefly_max_indirect_L);
@@ -399,17 +387,16 @@ namespace fox_tracer::render
 
             color bsdf_weight;
             float pdf_bsdf = 0.0f;
-            const vec3 wi_next = sd.surface_bsdf->sample(sd, s,
-                                                             bsdf_weight, pdf_bsdf);
-            if (pdf_bsdf <= 0.0f) return color(0.0f, 0.0f, 0.0f);
+            const vec3 wi_next = sd.surface_bsdf->sample(sd, s, bsdf_weight, pdf_bsdf);
+            if (pdf_bsdf <= 0.0f) return {0.0f, 0.0f, 0.0f};
 
             const float cos_theta = std::fabs(math::dot(wi_next, sd.s_normal));
             throughput = throughput * bsdf_weight * (cos_theta / pdf_bsdf);
-            if (throughput.luminance() <= 0.0f) return color(0.0f, 0.0f, 0.0f);
+            if (throughput.luminance() <= 0.0f) return {0.0f, 0.0f, 0.0f};
 
-            r.init(sd.x + wi_next * math::epsilon<float>, wi_next);
+            r.init(math::offset_ray_origin(sd.x, sd.g_normal, wi_next), wi_next);
         }
 
-        return color(0.0f, 0.0f, 0.0f);
+        return {0.0f, 0.0f, 0.0f};
     }
 } // namespace fox_tracer

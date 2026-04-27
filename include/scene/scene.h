@@ -138,6 +138,9 @@ namespace fox_tracer
             [[nodiscard]] bool visible(const vec3& p1,
                                        const vec3& p2) const;
 
+            [[nodiscard]] bool visible(const vec3& p1, const vec3& g_n1,
+                                       const vec3& p2, const vec3& g_n2) const;
+
             [[nodiscard]] color emit(const geometry::triangle* light_tri,
                                      const shading_data& sd,
                                      const vec3& wi)     const;

@@ -40,6 +40,7 @@ namespace fox_tracer
     class sampler;
 }
 
+//~ TODO: FIX it later if I have time soo buggy
 namespace fox_tracer::render
 {
     //~ Unbiased Non-uniform noise

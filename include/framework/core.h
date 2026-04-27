@@ -258,6 +258,15 @@ namespace fox_tracer
 
         [[nodiscard]] vec3 min(const vec3& a, const vec3& b) noexcept;
         [[nodiscard]] vec3 max(const vec3& a, const vec3& b) noexcept;
+
+
+        [[nodiscard]] inline vec3 offset_ray_origin(
+        const vec3& p, const vec3& g_normal, const vec3& wi) noexcept
+        {
+            constexpr float ray_eps = 1.0e-4f;
+            const float s = (dot(wi, g_normal) >= 0.0f) ? 1.0f : -1.0f;
+            return p + g_normal * (s * ray_eps);
+        }
     }
 
     namespace transform
