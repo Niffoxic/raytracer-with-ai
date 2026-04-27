@@ -126,7 +126,6 @@ def _call_image_to_image(client, src_img, prompt: str):
         kwargs["num_inference_steps"] = int(INFERENCE_STEPS)
     return client.image_to_image(src_img, **kwargs)
 
-
 def apply(rgb, w, h, emit_partial, should_cancel):
     assert _client is not None and _Image is not None, "apply() called before load()"
     Image = _Image
